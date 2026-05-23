@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -105,10 +105,10 @@ export default function Booking() {
         }
         setIsSubmitting(true)
         try {
-            const selectedService = SERVICES.find(s => s.id === formData.service)
+            const selectedSvc = SERVICES.find(s => s.id === formData.service)
             await appointmentsApi.create({
                 ...formData,
-                service: selectedService?.name
+                service: selectedSvc?.name
             })
             setIsBooked(true)
         } catch (error) {
@@ -119,34 +119,45 @@ export default function Booking() {
     }
 
     const selectedService = SERVICES.find(s => s.id === formData.service)
+    const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
+
+    // Parse prices and calculate total
+    const parsePrice = (priceStr) => {
+        const num = parseInt(priceStr.replace(/[^0-9]/g, ''))
+        return isNaN(num) ? 0 : num
+    }
+
+    const servicePrice = parsePrice(selectedService?.price || '0')
+    const mlPrice = parsePrice(selectedMLRec?.price || '0')
+    const totalPrice = servicePrice + mlPrice
 
     // ── Success Screen ──────────────────────────────────────────────────────
     if (isBooked) {
         return (
-            <div className='min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-32 pb-20 px-4 flex items-center justify-center'>
+            <div className='min-h-screen bg-slate-50 font-sans pt-32 pb-20 px-4 flex items-center justify-center'>
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className='bg-white rounded-2xl p-10 shadow-2xl border border-gray-100 text-center max-w-md w-full'
+                    className='bg-white rounded-3xl p-10 shadow-sm border border-slate-200/60 text-center max-w-md w-full'
                 >
                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }}
-                        className='w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6'>
-                        <CalendarCheck size={40} className='text-green-600' />
+                        className='w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6'>
+                        <CalendarCheck size={36} className='text-emerald-500' />
                     </motion.div>
-                    <h2 className='text-3xl font-bold text-gray-900 mb-3'>Booking Confirmed!</h2>
-                    <p className='text-gray-600 mb-2'>Your appointment has been submitted.</p>
-                    <p className='text-gray-500 text-sm mb-8'>We'll reach out at <strong>{formData.ownerEmail}</strong> to confirm your booking shortly.</p>
-                    <div className='bg-purple-50 rounded-xl p-4 text-left mb-6 text-sm space-y-2'>
-                        <p><strong>Pet:</strong> {formData.petName} ({formData.breed})</p>
-                        <p><strong>Service:</strong> {selectedService?.name}</p>
-                        {formData.haircutStyle && <p><strong>Style:</strong> {formData.haircutStyle}</p>}
-                        <p><strong>Date:</strong> {formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                        <p><strong>Time:</strong> {formatTime(formData.time)}</p>
+                    <h2 className='text-2xl font-extrabold text-slate-900 mb-2'>Appointment Booked!</h2>
+                    <p className='text-slate-500 mb-8 max-w-sm mx-auto'>Your pet's grooming session is secured. We've added this to your dashboard.</p>
+
+                    <div className='bg-purple-50 rounded-2xl p-6 text-left mb-8 border border-purple-100/50 text-sm space-y-3'>
+                        <p><strong className="text-slate-700">Pet:</strong> <span className="text-slate-600">{formData.petName} ({formData.breed})</span></p>
+                        <p><strong className="text-slate-700">Service:</strong> <span className="text-slate-600">{selectedService?.name}</span></p>
+                        {formData.haircutStyle && <p><strong className="text-slate-700">Style:</strong> <span className="text-slate-600">{formData.haircutStyle}</span></p>}
+                        <p><strong className="text-slate-700">Date:</strong> <span className="text-slate-600">{formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
+                        <p><strong className="text-slate-700">Time:</strong> <span className="text-slate-600">{formatTime(formData.time)}</span></p>
                     </div>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        onClick={() => navigate('/')}
-                        className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all'>
-                        Back to Home
+                        onClick={() => navigate('/dashboard')}
+                        className='w-full bg-slate-900 text-white px-8 py-3.5 rounded-xl font-bold hover:bg-slate-800 shadow-md transition-all'>
+                        Return to Dashboard
                     </motion.button>
                 </motion.div>
             </div>
@@ -154,59 +165,50 @@ export default function Booking() {
     }
 
     return (
-        <div className='min-h-screen bg-gradient-to-br from-white via-purple-50 to-white pt-32 pb-20 px-4'>
-            <div className='max-w-4xl mx-auto'>
-                {/* Header */}
-                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-                    className='flex items-center gap-4 mb-8'>
-                    <button onClick={() => navigate('/')} className='p-2 hover:bg-gray-100 rounded-lg transition-colors'>
-                        <ArrowLeft size={24} className='text-gray-700' />
-                    </button>
-                    <div>
-                        <img src='/logo.png' alt='Timmy Tails' className='w-10 h-10 rounded-lg object-cover inline-block mr-3' />
-                        <h1 className='text-3xl font-bold text-gray-900 inline-block'>Book Appointment</h1>
-                    </div>
-                </motion.div>
+        <div className='min-h-screen bg-slate-50 text-slate-800 font-sans pt-24 pb-20 px-4'>
+            <div className='max-w-3xl mx-auto'>
 
-                {/* Progress Steps */}
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                    className='flex justify-center items-center gap-6 mb-4'>
-                    {[1, 2, 3].map((num) => (
-                        <div key={num} className='flex items-center gap-4'>
-                            <motion.div
-                                animate={{ backgroundColor: step >= num ? '#a855f7' : '#e5e7eb', color: step >= num ? '#fff' : '#6b7280' }}
-                                className='w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg relative'
-                            >
-                                {step > num ? <CheckCircle2 size={24} /> : num}
-                            </motion.div>
-                            {num < 3 && <div className={`h-1 w-16 rounded ${step > num ? 'bg-purple-600' : 'bg-gray-300'}`} />}
-                        </div>
-                    ))}
-                </motion.div>
-                <div className='flex justify-center gap-12 mb-8 text-sm font-medium'>
-                    {['Pet & Service', 'Date & Time', 'Confirm'].map((label, i) => (
-                        <span key={label} className={step === i + 1 ? 'text-purple-600' : 'text-gray-400'}>{label}</span>
-                    ))}
+                {/* Progress Header */}
+                <div className='mb-8'>
+                    <div className='flex items-center gap-4 mb-8'>
+                        <button onClick={() => navigate('/dashboard')} className='p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500'>
+                            <ArrowLeft size={20} />
+                        </button>
+                        <h2 className='text-2xl font-extrabold text-slate-900'>Book an Appointment</h2>
+                    </div>
+                    <div className='flex justify-center items-center gap-4 mb-3'>
+                        {[1, 2, 3].map((num) => (
+                            <div key={num} className='flex items-center gap-4'>
+                                <motion.div animate={{ backgroundColor: step >= num ? '#9333ea' : '#f1f5f9', color: step >= num ? '#fff' : '#94a3b8' }}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm`}>
+                                    {step > num ? <CheckCircle2 size={20} /> : num}
+                                </motion.div>
+                                {num < 3 && <div className={`h-1 w-12 sm:w-20 rounded ${step > num ? 'bg-purple-600' : 'bg-slate-200'}`} />}
+                            </div>
+                        ))}
+                    </div>
+                    <div className='flex justify-center gap-8 sm:gap-16 text-xs font-bold uppercase tracking-wider text-slate-400'>
+                        <span className={step >= 1 ? 'text-purple-600' : ''}>Pet & Service</span>
+                        <span className={step >= 2 ? 'text-purple-600' : ''}>Date & Time</span>
+                        <span className={step >= 3 ? 'text-purple-600' : ''}>Confirm</span>
+                    </div>
                 </div>
 
                 <AnimatePresence mode='wait'>
                     {/* ── Step 1 ─────────────────────────────────────────────── */}
                     {step === 1 && (
-                        <motion.div key='step1' initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
-                            className='bg-white rounded-2xl p-8 shadow-lg border border-gray-100'>
-                            <h2 className='text-2xl font-bold text-gray-900 mb-6'>Pet Information</h2>
-
-                            <div className='grid md:grid-cols-2 gap-6 mb-8'>
+                        <motion.div key='step1' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
+                            <h3 className='text-xl font-bold text-slate-900 mb-6'>Pet Information</h3>
+                            <div className='grid md:grid-cols-2 gap-5 mb-8'>
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>Pet Name *</label>
-                                    <input type='text' name='petName' value={formData.petName} onChange={handleInputChange}
-                                        placeholder='e.g., Max'
-                                        className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 transition-colors' />
+                                    <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Pet Name *</label>
+                                    <input type='text' name='petName' value={formData.petName} onChange={handleInputChange} placeholder='e.g., Max'
+                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
                                 </div>
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>Breed *</label>
+                                    <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Breed *</label>
                                     <select name='breed' value={formData.breed} onChange={handleBreedChange}
-                                        className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 transition-colors'>
+                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium'>
                                         <option value=''>Select breed</option>
                                         {BREEDS.map(b => <option key={b} value={b}>{b}</option>)}
                                     </select>
@@ -216,119 +218,133 @@ export default function Booking() {
                             {/* ML Recommendations */}
                             <AnimatePresence>
                                 {formData.breed && formData.breed !== 'Other' && (
-                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                                        className='bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-8 border border-purple-200'>
-                                        <h3 className='text-lg font-bold text-gray-900 mb-1 flex items-center gap-2'>
-                                            <Sparkles size={20} className='text-purple-600' />
-                                            AI-Recommended Haircuts for {formData.breed}
-                                        </h3>
-                                        <p className='text-sm text-gray-500 mb-4'>Based on seasonal trends and breed analysis — {getCurrentSeason()} season</p>
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className='overflow-hidden'>
+                                        <div className='bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8 border border-purple-100'>
+                                            <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
+                                                <Sparkles size={18} className='text-amber-500 fill-amber-500' /> AI-Recommended Styles for {formData.breed}
+                                            </h4>
+                                            <p className='text-xs text-slate-500 mb-4'>Analyzed for {getCurrentSeason()} weather conditions.</p>
 
-                                        {mlLoading ? (
-                                            <div className='flex items-center gap-3 py-4'>
-                                                <Loader2 className='animate-spin text-purple-600' size={20} />
-                                                <span className='text-gray-600 text-sm'>Fetching ML recommendations...</span>
-                                            </div>
-                                        ) : mlRecs.length > 0 ? (
-                                            <div className='grid md:grid-cols-3 gap-4'>
-                                                {mlRecs.map((rec, idx) => (
-                                                    <motion.div key={idx} whileHover={{ y: -4 }}
-                                                        onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
-                                                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-gray-200 bg-white hover:border-purple-300'}`}>
-                                                        <div className='flex justify-between items-start mb-2'>
-                                                            <h4 className='font-bold text-gray-900 text-sm'>{rec.name}</h4>
-                                                            <span className='bg-purple-600 text-white text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap'>{rec.match}</span>
-                                                        </div>
-                                                        <p className='text-xs text-gray-500 mb-2 line-clamp-2'>{rec.description}</p>
-                                                        <div className='flex justify-between items-center text-xs text-gray-500'>
-                                                            <span className='flex items-center gap-1'><TrendingUp size={12} className='text-purple-500' /> {rec.popularity}</span>
-                                                            <span className='font-bold text-purple-600'>{rec.price}</span>
-                                                        </div>
-                                                        {formData.haircutStyle === rec.name && (
-                                                            <div className='mt-2 text-xs text-purple-600 font-bold flex items-center gap-1'>
-                                                                <CheckCircle2 size={14} /> Selected
+                                            {mlLoading ? (
+                                                <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm'>Generating smart suggestions...</span></div>
+                                            ) : mlRecs.length > 0 ? (
+                                                <div className='grid md:grid-cols-3 gap-3'>
+                                                    {mlRecs.map((rec, idx) => (
+                                                        <div key={idx} onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
+                                                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                            <div className='flex justify-between items-start mb-2'>
+                                                                <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
+                                                                <span className='bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap'>{rec.match}</span>
                                                             </div>
-                                                        )}
-                                                    </motion.div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className='text-sm text-gray-500 italic'>No ML recommendations available — using default styles.</p>
-                                        )}
+                                                            <p className='text-[11px] text-slate-500 mb-3 line-clamp-2'>{rec.description}</p>
+                                                            <div className='flex justify-between items-center text-xs'>
+                                                                <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
+                                                                <span className='font-bold text-slate-700'>{rec.price}</span>
+                                                            </div>
+                                                            {formData.haircutStyle === rec.name && (
+                                                                <div className='mt-3 pt-2 border-t border-purple-100 text-xs text-purple-600 font-bold flex items-center gap-1'>
+                                                                    <CheckCircle2 size={14} /> Selected
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className='text-sm text-slate-500 italic'>No AI suggestions available — please select a standard service below.</p>
+                                            )}
+                                        </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
 
-                            <h2 className='text-2xl font-bold text-gray-900 mb-4'>Select Service</h2>
-                            <div className='grid md:grid-cols-2 gap-4 mb-8'>
+                            <h3 className='text-xl font-bold text-slate-900 mb-4'>Select Service</h3>
+                            <div className='grid md:grid-cols-2 gap-3 mb-8'>
                                 {SERVICES.map(service => (
-                                    <motion.div key={service.id} whileHover={{ y: -3 }}
-                                        onClick={() => setFormData(prev => ({ ...prev, service: service.id }))}
-                                        className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50' : 'border-gray-200 bg-white hover:border-purple-300'}`}>
-                                        <h3 className='font-bold text-gray-900 mb-1'>{service.name}</h3>
-                                        <p className='text-gray-500 text-sm mb-3'>{service.description}</p>
-                                        <div className='flex justify-between items-center'>
-                                            <span className='flex items-center gap-1 text-gray-500 text-sm'><Clock size={14} /> {service.duration}</span>
-                                            <span className='font-bold text-purple-600'>{service.price}</span>
+                                    <div key={service.id} onClick={() => setFormData(prev => ({ ...prev, service: service.id }))}
+                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                        <h4 className='font-bold text-slate-900 text-sm mb-1'>{service.name}</h4>
+                                        <p className='text-slate-500 text-xs mb-3'>{service.description}</p>
+                                        <div className='flex justify-between items-center mt-auto pt-3 border-t border-slate-100'>
+                                            <span className='flex items-center gap-1.5 text-slate-400 text-xs font-medium'><Clock size={14} /> {service.duration}</span>
+                                            <span className='font-bold text-slate-800 text-sm'>{service.price}</span>
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 ))}
                             </div>
 
                             <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || !formData.service}
-                                className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-purple-500/50 transition-all'>
-                                Continue to Date & Time →
+                                className='w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-all'>
+                                Continue to Date & Time
                             </button>
                         </motion.div>
                     )}
 
                     {/* ── Step 2 ─────────────────────────────────────────────── */}
                     {step === 2 && (
-                        <motion.div key='step2' initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
-                            className='bg-white rounded-2xl p-8 shadow-lg border border-gray-100'>
-                            <h2 className='text-2xl font-bold text-gray-900 mb-6'>Select Date & Time</h2>
+                        <motion.div key='step2' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
+                            <h3 className='text-xl font-bold text-slate-900 mb-6'>Select Date & Time</h3>
 
-                            <div className='mb-8'>
-                                <label className='block text-gray-700 font-bold mb-2'>Preferred Date *</label>
+                            {(selectedService || formData.haircutStyle) && (
+                                <div className='bg-slate-50 border border-slate-200 rounded-xl p-5 mb-8'>
+                                    <p className='text-xs font-bold uppercase tracking-wider text-slate-500 mb-3'>Selected Services</p>
+                                    <div className='space-y-3'>
+                                        {selectedService && (
+                                            <div className='flex justify-between items-center'>
+                                                <div>
+                                                    <p className='text-sm font-bold text-slate-900'>{selectedService.name}</p>
+                                                </div>
+                                                <div className='text-right'>
+                                                    <p className='text-xs font-medium text-slate-500 mb-0.5'>{selectedService.duration}</p>
+                                                    <p className='text-sm font-bold text-purple-600'>{selectedService.price}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {formData.haircutStyle && (
+                                            <div className='flex justify-between items-center pt-3 border-t border-slate-200'>
+                                                <div>
+                                                    <p className='text-sm font-bold text-slate-900'>AI Style: {formData.haircutStyle}</p>
+                                                </div>
+                                                <div className='text-right'>
+                                                    <p className='text-sm font-bold text-purple-600'>₱{mlPrice.toLocaleString()}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className='flex justify-between items-center pt-3 border-t border-purple-200'>
+                                            <span className='text-xs font-bold uppercase tracking-wider text-slate-600'>Total Est.</span>
+                                            <span className='font-bold text-purple-700 text-lg'>₱{totalPrice.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className='mb-6'>
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Preferred Date *</label>
                                 <input type='date' name='date' value={formData.date} onChange={handleInputChange} min={getMinDate()}
-                                    className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                    className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
                             </div>
 
                             <div className='mb-8'>
-                                <label className='block text-gray-700 font-bold mb-3'>
-                                    Available Time Slots *
-                                    {slotsLoading && <Loader2 className='inline animate-spin ml-2 text-purple-600' size={16} />}
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3'>
+                                    Available Time Slots * {slotsLoading && <Loader2 className='inline animate-spin ml-2 text-purple-600' size={14} />}
                                 </label>
                                 <div className='grid grid-cols-3 md:grid-cols-4 gap-3'>
                                     {ALL_SLOTS.map(time => {
-                                        const isBooked = bookedSlots.includes(time)
+                                        const isBookedSlot = bookedSlots.includes(time)
                                         const isSelected = formData.time === time
                                         return (
-                                            <motion.button key={time} whileHover={!isBooked ? { scale: 1.05 } : {}} whileTap={!isBooked ? { scale: 0.95 } : {}}
-                                                disabled={isBooked}
-                                                onClick={() => !isBooked && setFormData(prev => ({ ...prev, time }))}
-                                                className={`py-3 px-3 rounded-lg font-bold transition-all text-sm ${isBooked ? 'bg-gray-100 text-gray-400 cursor-not-allowed line-through' : isSelected ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-purple-100 hover:text-purple-700'}`}>
+                                            <button key={time} disabled={isBookedSlot} onClick={() => !isBookedSlot && setFormData(prev => ({ ...prev, time }))}
+                                                className={`py-3 px-2 rounded-xl font-bold transition-all text-sm border-2 ${isBookedSlot ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed line-through' : isSelected ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300'}`}>
                                                 {formatTime(time)}
-                                                {isBooked && <span className='block text-xs font-normal'>Booked</span>}
-                                            </motion.button>
+                                            </button>
                                         )
                                     })}
                                 </div>
                             </div>
 
-                            {selectedService && (
-                                <div className='bg-purple-50 border border-purple-200 rounded-xl p-4 mb-8'>
-                                    <p className='text-sm text-gray-700 mb-1'><strong>Service:</strong> {selectedService.name}</p>
-                                    <p className='text-sm text-gray-700 mb-1'><strong>Duration:</strong> {selectedService.duration}</p>
-                                    <p className='text-sm font-bold text-purple-600'><strong>Price:</strong> {selectedService.price}</p>
-                                </div>
-                            )}
-
-                            <div className='flex gap-4'>
-                                <button onClick={() => setStep(1)} className='flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-300 transition-all'>← Back</button>
-                                <button onClick={() => setStep(3)} disabled={!formData.date || !formData.time}
-                                    className='flex-1 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg transition-all'>
-                                    Continue →
+                            <div className='flex gap-3'>
+                                <button onClick={() => setStep(1)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
+                                <button onClick={() => setStep(3)} disabled={!formData.date || !formData.time} className='w-2/3 bg-slate-900 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-slate-800 transition-all'>
+                                    Review Booking
                                 </button>
                             </div>
                         </motion.div>
@@ -336,70 +352,57 @@ export default function Booking() {
 
                     {/* ── Step 3 ─────────────────────────────────────────────── */}
                     {step === 3 && (
-                        <motion.div key='step3' initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}
-                            className='bg-white rounded-2xl p-8 shadow-lg border border-gray-100'>
-                            <h2 className='text-2xl font-bold text-gray-900 mb-6'>Confirm & Complete Booking</h2>
+                        <motion.div key='step3' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
+                            <h3 className='text-xl font-bold text-slate-900 mb-6'>Confirm Details</h3>
 
-                            <div className='grid md:grid-cols-2 gap-6 mb-6'>
+                            <div className='grid md:grid-cols-2 gap-5 mb-5'>
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>Your Name *</label>
+                                    <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Owner Name *</label>
                                     <input type='text' name='ownerName' value={formData.ownerName} onChange={handleInputChange}
-                                        placeholder='Your full name'
-                                        className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
                                 </div>
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>Email *</label>
+                                    <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Email Address *</label>
                                     <input type='email' name='ownerEmail' value={formData.ownerEmail} onChange={handleInputChange}
-                                        placeholder='your@email.com'
-                                        className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
                                 </div>
                             </div>
-
-                            <div className='mb-6'>
-                                <label className='block text-gray-700 font-bold mb-2'>Phone Number *</label>
+                            <div className='mb-5'>
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Mobile Number *</label>
                                 <input type='tel' name='ownerPhone' value={formData.ownerPhone} onChange={handleInputChange}
-                                    placeholder='+63 9XX XXX XXXX'
-                                    className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                    className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
+                            </div>
+                            <div className='mb-8'>
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Special Notes (Optional)</label>
+                                <textarea name='notes' value={formData.notes} onChange={handleInputChange} rows={2} placeholder='Temperament, allergies, etc.'
+                                    className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium resize-none' />
                             </div>
 
-                            <div className='mb-6'>
-                                <label className='block text-gray-700 font-bold mb-2'>Special Notes (optional)</label>
-                                <textarea name='notes' value={formData.notes} onChange={handleInputChange} rows={3}
-                                    placeholder='Any special requests or information about your pet...'
-                                    className='w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 resize-none' />
-                            </div>
-
-                            {/* Summary */}
-                            <div className='bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-8 border border-purple-100'>
-                                <h3 className='font-bold text-gray-900 mb-4 text-lg flex items-center gap-2'>
-                                    <CheckCircle2 size={20} className='text-purple-600' />
-                                    Booking Summary
-                                </h3>
-                                <div className='grid grid-cols-2 gap-3 text-sm text-gray-700'>
-                                    <div><span className='text-gray-500'>Pet:</span> <strong>{formData.petName}</strong></div>
-                                    <div><span className='text-gray-500'>Breed:</span> <strong>{formData.breed}</strong></div>
-                                    {formData.haircutStyle && (
-                                        <div className='col-span-2'><span className='text-gray-500'>Style:</span> <strong className='text-purple-700'>{formData.haircutStyle}</strong></div>
-                                    )}
-                                    <div><span className='text-gray-500'>Service:</span> <strong>{selectedService?.name}</strong></div>
-                                    <div><span className='text-gray-500'>Date:</span> <strong>{formatDate(formData.date, { month: 'short', day: 'numeric', year: 'numeric' })}</strong></div>
-                                    <div><span className='text-gray-500'>Time:</span> <strong>{formatTime(formData.time)}</strong></div>
-                                    <div><span className='text-gray-500'>Price:</span> <strong className='text-purple-600'>{selectedService?.price}</strong></div>
+                            {/* Summary Box */}
+                            <div className='bg-purple-50 rounded-2xl p-6 mb-8 border border-purple-100/50'>
+                                <h4 className='font-bold text-slate-900 mb-4 text-sm flex items-center gap-2 uppercase tracking-wider'>
+                                    <CheckCircle2 size={16} className='text-purple-600' /> Booking Summary
+                                </h4>
+                                <div className='grid grid-cols-2 gap-4 text-sm text-slate-700 mb-4'>
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Pet</span> <strong className='text-slate-900'>{formData.petName} ({formData.breed})</strong></div>
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service</span> <strong className='text-slate-900'>{selectedService?.name}</strong></div>
+                                    {formData.haircutStyle && <div className='col-span-2'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Choice</span> <strong className='text-purple-700'>{formData.haircutStyle}</strong></div>}
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Time</span> <strong className='text-slate-900'>{formatTime(formData.time)}</strong></div>
+                                </div>
+                                <div className='grid grid-cols-2 gap-4 text-sm'>
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong className='text-slate-900'>₱{servicePrice.toLocaleString()}</strong></div>
+                                    {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong className='text-slate-900'>₱{mlPrice.toLocaleString()}</strong></div>}
+                                    <div className='col-span-2 pt-2 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
                                 </div>
                             </div>
 
-                            <div className='flex gap-4'>
-                                <button onClick={() => setStep(2)} className='flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg font-bold hover:bg-gray-300 transition-all'>← Back</button>
-                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
-                                    className='flex-1 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg transition-all'>
-                                    {isSubmitting ? (
-                                        <span className='flex items-center justify-center gap-2'>
-                                            <Loader2 className='animate-spin' size={18} /> Booking...
-                                        </span>
-                                    ) : 'Confirm Booking'}
-                                </motion.button>
+                            <div className='flex gap-3'>
+                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
+                                <button onClick={handleSubmit} disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
+                                    className='w-2/3 bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-purple-700 shadow-md shadow-purple-200 transition-all flex justify-center items-center gap-2'>
+                                    {isSubmitting ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
+                                </button>
                             </div>
                         </motion.div>
                     )}
