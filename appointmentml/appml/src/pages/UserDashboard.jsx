@@ -167,6 +167,17 @@ export default function UserDashboard() {
         return Object.values(unique);
     }, [appointments]);
     const selectedService = SERVICES.find(s => s.id === formData.service)
+const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
+
+    // Parse prices and calculate total
+    const parsePrice = (priceStr) => {
+        const num = parseInt(priceStr.replace(/[^0-9]/g, ''))
+        return isNaN(num) ? 0 : num
+    }
+
+    const servicePrice = parsePrice(selectedService?.price || '0')
+    const mlPrice = parsePrice(selectedMLRec?.price || '0')
+    const totalPrice = servicePrice + mlPrice
 
     // 4. Handlers
     const handleMarkRead = async (id) => {
@@ -629,6 +640,11 @@ export default function UserDashboard() {
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Time</span> <strong className='text-slate-900'>{formatTime(formData.time)}</strong></div>
                                         </div>
                                     </div>
+                                        <div class='grid grid-cols-2 gap-4 text-sm'>
+                                            <div><span class='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong class='text-slate-900'>?{servicePrice.toLocaleString()}</strong></div>
+                                            {formData.haircutStyle && <div><span class='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong class='text-slate-900'>?{mlPrice.toLocaleString()}</strong></div>}
+                                            <div class='col-span-2 pt-2 border-t border-purple-200'><span class='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong class='text-lg text-purple-700'>?{totalPrice.toLocaleString()}</strong></div>
+                                        </div>
 
                                     <div className='flex gap-3'>
                                         <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
@@ -766,3 +782,5 @@ export default function UserDashboard() {
         </div>
     )
 }
+
+
