@@ -46,7 +46,6 @@ export default function Booking() {
     const [bookedSlots, setBookedSlots] = useState([])
     const [slotsLoading, setSlotsLoading] = useState(false)
 
-    // Pre-fill owner info from auth context
     useEffect(() => {
         if (user) {
             setFormData(prev => ({
@@ -58,7 +57,6 @@ export default function Booking() {
         }
     }, [user])
 
-    // Fetch ML recommendations when breed changes
     useEffect(() => {
         if (!formData.breed || formData.breed === 'Other') { setMlRecs([]); return }
         const season = getCurrentSeason()
@@ -69,7 +67,6 @@ export default function Booking() {
             .finally(() => setMlLoading(false))
     }, [formData.breed])
 
-    // Fetch booked slots when date changes
     useEffect(() => {
         if (!formData.date) { setBookedSlots([]); return }
         setSlotsLoading(true)
@@ -121,7 +118,6 @@ export default function Booking() {
     const selectedService = SERVICES.find(s => s.id === formData.service)
     const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
 
-    // Parse prices and calculate total
     const parsePrice = (priceStr) => {
         const num = parseInt(priceStr.replace(/[^0-9]/g, ''))
         return isNaN(num) ? 0 : num
@@ -131,7 +127,6 @@ export default function Booking() {
     const mlPrice = parsePrice(selectedMLRec?.price || '0')
     const totalPrice = servicePrice + mlPrice
 
-    // ── Success Screen ──────────────────────────────────────────────────────
     if (isBooked) {
         return (
             <div className='min-h-screen bg-slate-50 font-sans pt-32 pb-20 px-4 flex items-center justify-center'>
@@ -168,7 +163,6 @@ export default function Booking() {
         <div className='min-h-screen bg-slate-50 text-slate-800 font-sans pt-24 pb-20 px-4'>
             <div className='max-w-3xl mx-auto'>
 
-                {/* Progress Header */}
                 <div className='mb-8'>
                     <div className='flex items-center gap-4 mb-8'>
                         <button onClick={() => navigate('/dashboard')} className='p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500'>
@@ -228,25 +222,26 @@ export default function Booking() {
                                             {mlLoading ? (
                                                 <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm'>Generating smart suggestions...</span></div>
                                             ) : mlRecs.length > 0 ? (
-                                                <div className='grid md:grid-cols-3 gap-3'>
+                                                <div className='grid md:grid-cols-3 gap-4 items-stretch'>
                                                     {mlRecs.map((rec, idx) => (
-                                                        <div key={idx} onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
-                                                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                        <motion.div key={idx} whileHover={{ y: -4 }}
+                                                            onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
+                                                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col h-full ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
                                                             <div className='flex justify-between items-start mb-2'>
                                                                 <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
-                                                                <span className='bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap'>{rec.match}</span>
+                                                                <span className='bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap'>{rec.match}</span>
                                                             </div>
-                                                            <p className='text-[11px] text-slate-500 mb-3 line-clamp-2'>{rec.description}</p>
-                                                            <div className='flex justify-between items-center text-xs'>
+                                                            <p className='text-xs text-slate-500 mb-4 flex-grow leading-relaxed'>{rec.description}</p>
+                                                            <div className='flex justify-between items-center text-xs mt-auto'>
                                                                 <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
-                                                                <span className='font-bold text-slate-700'>{rec.price}</span>
+                                                                <span className='font-bold text-purple-600'>{rec.price}</span>
                                                             </div>
                                                             {formData.haircutStyle === rec.name && (
                                                                 <div className='mt-3 pt-2 border-t border-purple-100 text-xs text-purple-600 font-bold flex items-center gap-1'>
                                                                     <CheckCircle2 size={14} /> Selected
                                                                 </div>
                                                             )}
-                                                        </div>
+                                                        </motion.div>
                                                     ))}
                                                 </div>
                                             ) : (
@@ -398,11 +393,13 @@ export default function Booking() {
                             </div>
 
                             <div className='flex gap-3'>
-                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
-                                <button onClick={handleSubmit} disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
-                                    className='w-2/3 bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-purple-700 shadow-md shadow-purple-200 transition-all flex justify-center items-center gap-2'>
+                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>← Back</button>
+                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                    onClick={handleSubmit}
+                                    disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
+                                    className='w-2/3 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg transition-all flex justify-center items-center gap-2'>
                                     {isSubmitting ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
-                                </button>
+                                </motion.button>
                             </div>
                         </motion.div>
                     )}
