@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from data.breed_data import BREED_DATA, HAIRCUT_CATALOG
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", "http://localhost:3000", os.getenv("FRONTEND_URL", "")])
+CORS(app, origins=["http://localhost:5173", "http://localhost:3000", "https://timmytails.vercel.app", os.getenv("FRONTEND_URL", "")])
 
 # ── Feature encoding ──────────────────────────────────────────────────────────
 COAT_TYPES   = ["single", "double", "curly", "silky", "wire"]
@@ -177,3 +177,4 @@ if __name__ == "__main__":
     debug = os.getenv("FLASK_DEBUG", "0") == "1"
     print(f"🐾 Timmy Tails ML Service running on port {port}")
     app.run(host="0.0.0.0", port=port, debug=debug)
+
