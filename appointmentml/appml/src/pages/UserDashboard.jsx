@@ -12,12 +12,11 @@ import {
     Sparkles,
     Scissors,
     User,
-    AlertCircle,
-    ArrowLeft,
     CheckCircle2,
     CalendarCheck,
     TrendingUp,
-    Settings
+    Settings,
+    ArrowLeft
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { appointmentsApi, notificationsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
@@ -167,7 +166,7 @@ export default function UserDashboard() {
         return Object.values(unique);
     }, [appointments]);
     const selectedService = SERVICES.find(s => s.id === formData.service)
-const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
+    const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
 
     // Parse prices and calculate total
     const parsePrice = (priceStr) => {
@@ -227,6 +226,7 @@ const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
     const resetBookingAndReturn = () => {
         setStep(1)
         setIsBooked(false)
+        setIsSubmittingBooking(false)
         setFormData(prev => ({
             ...prev, petName: '', breed: '', haircutStyle: null, service: null, date: '', time: '', notes: ''
         }))
@@ -553,6 +553,40 @@ const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
                             {step === 2 && !isBooked && (
                                 <motion.div key='step2' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
                                     <h3 className='text-xl font-bold text-slate-900 mb-6'>Select Date & Time</h3>
+
+                                    {(selectedService || formData.haircutStyle) && (
+                                        <div className='bg-slate-50 border border-slate-200 rounded-xl p-5 mb-8'>
+                                            <p className='text-xs font-bold uppercase tracking-wider text-slate-500 mb-3'>Selected Services</p>
+                                            <div className='space-y-3'>
+                                                {selectedService && (
+                                                    <div className='flex justify-between items-center'>
+                                                        <div>
+                                                            <p className='text-sm font-bold text-slate-900'>{selectedService.name}</p>
+                                                        </div>
+                                                        <div className='text-right'>
+                                                            <p className='text-xs font-medium text-slate-500 mb-0.5'>{selectedService.duration}</p>
+                                                            <p className='text-sm font-bold text-purple-600'>{selectedService.price}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {formData.haircutStyle && (
+                                                    <div className='flex justify-between items-center pt-3 border-t border-slate-200'>
+                                                        <div>
+                                                            <p className='text-sm font-bold text-slate-900'>AI Style: {formData.haircutStyle}</p>
+                                                        </div>
+                                                        <div className='text-right'>
+                                                            <p className='text-sm font-bold text-purple-600'>₱{mlPrice.toLocaleString()}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className='flex justify-between items-center pt-3 border-t border-purple-200'>
+                                                    <span className='text-xs font-bold uppercase tracking-wider text-slate-600'>Total Est.</span>
+                                                    <span className='font-bold text-purple-700 text-lg'>₱{totalPrice.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className='mb-6'>
                                         <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Preferred Date *</label>
                                         <input type='date' name='date' value={formData.date} onChange={handleInputChange} min={getMinDate()}
@@ -576,19 +610,6 @@ const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
                                             })}
                                         </div>
                                     </div>
-
-                                    {selectedService && (
-                                        <div className='bg-slate-50 border border-slate-200 rounded-xl p-4 mb-8 flex justify-between items-center'>
-                                            <div>
-                                                <p className='text-xs font-bold uppercase tracking-wider text-slate-400 mb-0.5'>Selected Service</p>
-                                                <p className='text-sm font-bold text-slate-900'>{selectedService.name}</p>
-                                            </div>
-                                            <div className='text-right'>
-                                                <p className='text-xs font-bold uppercase tracking-wider text-slate-400 mb-0.5'>{selectedService.duration}</p>
-                                                <p className='text-sm font-bold text-purple-600'>{selectedService.price}</p>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     <div className='flex gap-3'>
                                         <button onClick={() => setStep(1)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
@@ -632,19 +653,19 @@ const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
                                         <h4 className='font-bold text-slate-900 mb-4 text-sm flex items-center gap-2 uppercase tracking-wider'>
                                             <CheckCircle2 size={16} className='text-purple-600' /> Booking Summary
                                         </h4>
-                                        <div className='grid grid-cols-2 gap-4 text-sm text-slate-700'>
+                                        <div className='grid grid-cols-2 gap-4 text-sm text-slate-700 mb-4'>
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Pet</span> <strong className='text-slate-900'>{formData.petName} ({formData.breed})</strong></div>
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service</span> <strong className='text-slate-900'>{selectedService?.name}</strong></div>
                                             {formData.haircutStyle && <div className='col-span-2'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Choice</span> <strong className='text-purple-700'>{formData.haircutStyle}</strong></div>}
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date)}</strong></div>
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Time</span> <strong className='text-slate-900'>{formatTime(formData.time)}</strong></div>
                                         </div>
-                                    </div>
-                                        <div class='grid grid-cols-2 gap-4 text-sm'>
-                                            <div><span class='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong class='text-slate-900'>?{servicePrice.toLocaleString()}</strong></div>
-                                            {formData.haircutStyle && <div><span class='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong class='text-slate-900'>?{mlPrice.toLocaleString()}</strong></div>}
-                                            <div class='col-span-2 pt-2 border-t border-purple-200'><span class='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong class='text-lg text-purple-700'>?{totalPrice.toLocaleString()}</strong></div>
+                                        <div className='grid grid-cols-2 gap-4 text-sm'>
+                                            <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong className='text-slate-900'>₱{servicePrice.toLocaleString()}</strong></div>
+                                            {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong className='text-slate-900'>₱{mlPrice.toLocaleString()}</strong></div>}
+                                            <div className='col-span-2 pt-2 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
                                         </div>
+                                    </div>
 
                                     <div className='flex gap-3'>
                                         <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
@@ -782,5 +803,3 @@ const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
         </div>
     )
 }
-
-
