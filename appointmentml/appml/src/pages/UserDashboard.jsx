@@ -500,7 +500,7 @@ export default function UserDashboard() {
                                                                         <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
                                                                         <span className='bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap'>{rec.match}</span>
                                                                     </div>
-                                                                    <p className='text-[11px] text-slate-500 mb-3 line-clamp-2'>{rec.description}</p>
+                                                                    <p className='text-[11px] text-slate-500 mb-3'>{rec.description}</p>
                                                                     <div className='flex justify-between items-center text-xs'>
                                                                         <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
                                                                         <span className='font-bold text-slate-700'>{rec.price}</span>
