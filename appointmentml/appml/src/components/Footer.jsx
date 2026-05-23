@@ -83,8 +83,8 @@ export default function Footer() {
                                 <Phone size={20} className='text-purple-500 mt-1 flex-shrink-0' />
                                 <div>
                                     <p className='text-sm text-gray-400'>Phone</p>
-                                    <a href='tel:+639123456789' className='text-white hover:text-purple-500 transition-colors font-medium'>
-                                        +63 (9) 123-456-789
+                                    <a href='tel:+639756692647' className='text-white hover:text-purple-500 transition-colors font-medium'>
+                                        (+63) 975-669-2647
                                     </a>
                                 </div>
                             </div>
@@ -92,8 +92,8 @@ export default function Footer() {
                                 <Mail size={20} className='text-purple-500 mt-1 flex-shrink-0' />
                                 <div>
                                     <p className='text-sm text-gray-400'>Email</p>
-                                    <a href='mailto:hello@timmytails.com' className='text-white hover:text-purple-500 transition-colors font-medium'>
-                                        hello@timmytails.com
+                                    <a href="#NA" className='text-white hover:text-purple-500 transition-colors font-medium'>
+                                        NA
                                     </a>
                                 </div>
                             </div>
@@ -102,8 +102,8 @@ export default function Footer() {
                                 <div>
                                     <p className='text-sm text-gray-400'>Address</p>
                                     <p className='text-white font-medium'>
-                                        123 Pet Street<br />
-                                        Manila, Philippines 1000
+                                        Tangos <br />
+                                        Baliuag City, Bulacan, Philippines
                                     </p>
                                 </div>
                             </div>

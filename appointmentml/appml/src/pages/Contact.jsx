@@ -43,8 +43,8 @@ export default function Contact() {
                     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}
                         className='space-y-6'>
                         {[
-                            { icon: Phone, label: 'Phone', value: '+63 (9) 123-456-789', href: 'tel:+639123456789' },
-                            { icon: Mail, label: 'Email', value: 'hello@timmytails.com', href: 'mailto:hello@timmytails.com' },
+                            { icon: Phone, label: 'Phone', value: '(+63) 975-669-2647', href: 'tel:+639756692647' },
+                            { icon: Mail, label: 'Email', value: 'NA', href: '#NA' },
                         ].map(({ icon: Icon, label, value, href }) => (
                             <div key={label} className='flex gap-4 items-start'>
                                 <div className='w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0'>
@@ -62,7 +62,7 @@ export default function Contact() {
                             </div>
                             <div>
                                 <h3 className='font-bold text-gray-900 mb-1'>Address</h3>
-                                <p className='text-gray-600'>123 Pet Street<br />Manila, Philippines 1000</p>
+                                <p className='text-gray-600'>Tangos<br />Baliuag City, Bulacan, Philippines</p>
                             </div>
                         </div>
 
