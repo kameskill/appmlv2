@@ -21,7 +21,8 @@ export const authApi = {
     register: (data) => api.post('/auth/register', data),
     sendPasswordOtp: (data) => api.post('/auth/password/send-otp', data),
     resetPassword: (data) => api.post('/auth/password/reset', data),
-    me: () => api.get('/auth/me')
+    me: () => api.get('/auth/me'),
+    updatePhone: (data) => api.patch('/auth/me/phone', data)
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export const adminApi = {
     getStats: () => api.get('/admin/stats'),
     getAppointments: (params) => api.get('/admin/appointments', { params }),
     updateStatus: (id, status) => api.patch(`/admin/appointments/${id}/status`, { status }),
+    deleteAppointment: (id) => api.delete(`/admin/appointments/${id}`),
     getAnalytics: () => api.get('/admin/analytics'),
     getContacts: () => api.get('/admin/contacts'),
     getNotifications: () => api.get('/admin/notifications'),

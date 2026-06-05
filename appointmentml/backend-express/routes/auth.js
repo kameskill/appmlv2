@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs')
 const User = require('../models/User')
 const OtpRequest = require('../models/OtpRequest')
 const { sendOtp } = require('../services/textbee')
+const { protect } = require('../middleware/auth')
 
 const OTP_TTL_MS = 10 * 60 * 1000
 
@@ -25,6 +26,13 @@ const validateRequest = (req, res) => {
 }
 
 const generateSixDigitOtp = () => `${Math.floor(100000 + Math.random() * 900000)}`
+const normalizePhone = (value) => {
+    const digits = String(value || '').replace(/\D/g, '')
+    if (!digits) return ''
+    if (digits.startsWith('63')) return `+${digits}`
+    if (digits.startsWith('0')) return `+63${digits.slice(1)}`
+    return `+63${digits}`
+}
 
 // @route   POST /api/auth/register/send-otp
 // @desc    Send OTP for account creation
@@ -295,7 +303,7 @@ router.post(
 // @route   GET /api/auth/me
 // @desc    Get logged-in user profile
 // @access  Private
-router.get('/me', require('../middleware/auth').protect, async (req, res) => {
+router.get('/me', protect, async (req, res) => {
     res.json({
         success: true,
         user: {
@@ -308,5 +316,51 @@ router.get('/me', require('../middleware/auth').protect, async (req, res) => {
         }
     })
 })
+
+// @route   PATCH /api/auth/me/phone
+// @desc    Update logged-in user phone number
+// @access  Private
+router.patch(
+    '/me/phone',
+    [body('phone').notEmpty().trim().withMessage('Phone is required')],
+    protect,
+    async (req, res) => {
+        if (!validateRequest(req, res)) return
+
+        const phone = normalizePhone(req.body.phone)
+        if (!phone || !/^\+63\d{10}$/.test(phone)) {
+            return res.status(400).json({ success: false, message: 'Enter a valid Philippine mobile number' })
+        }
+
+        try {
+            const existingUser = await User.findOne({ phone, _id: { $ne: req.user._id } })
+            if (existingUser) {
+                return res.status(400).json({ success: false, message: 'Mobile number is already in use' })
+            }
+
+            const updatedUser = await User.findByIdAndUpdate(
+                req.user._id,
+                { phone },
+                { new: true }
+            )
+
+            res.json({
+                success: true,
+                message: 'Mobile number updated successfully',
+                user: {
+                    id: updatedUser._id,
+                    firstName: updatedUser.firstName,
+                    lastName: updatedUser.lastName,
+                    email: updatedUser.email,
+                    phone: updatedUser.phone,
+                    role: updatedUser.role
+                }
+            })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({ success: false, message: 'Server error' })
+        }
+    }
+)
 
 module.exports = router

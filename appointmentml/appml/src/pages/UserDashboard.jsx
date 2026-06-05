@@ -79,7 +79,7 @@ const getMinDate = () => new Date().toISOString().split('T')[0]
 
 export default function UserDashboard() {
     const navigate = useNavigate()
-    const { user, logout, sendPasswordOtp, resetPasswordWithOtp } = useAuth()
+    const { user, logout, sendPasswordOtp, resetPasswordWithOtp, updatePhone } = useAuth()
 
     // Core Dashboard State
     const [loading, setLoading] = useState(true)
@@ -110,15 +110,20 @@ export default function UserDashboard() {
 
     const seasonDisplay = useMemo(() => getCurrentSeasonDetails(), []);
 
+    const normalizePhone = (value) => {
+        const digits = String(value || '').replace(/\D/g, '')
+        if (!digits) return ''
+        if (digits.startsWith('63')) return `+${digits}`
+        if (digits.startsWith('0')) return `+63${digits.slice(1)}`
+        return `+63${digits}`
+    }
+
     // 1. Initial Auth & Data Load
     useEffect(() => {
         if (!user) { navigate('/login', { replace: true }); return }
         if (user.role === 'admin') { navigate('/admin', { replace: true }); return }
 
-        // Format initial phone number to ensure +63
-        const initialPhone = user.phone || ''
-        const formattedPhone = initialPhone.startsWith('+63') ? initialPhone : `+63 ${initialPhone.replace(/^0+/, '')}`
-        const finalPhone = formattedPhone.trim() === '+63' ? '+63 ' : formattedPhone
+        const finalPhone = normalizePhone(user.phone || '')
 
         setProfilePhone(finalPhone)
         setPasswordForm(prev => ({ ...prev, phone: finalPhone }))
@@ -249,38 +254,36 @@ export default function UserDashboard() {
 
     // Settings / Profile Handlers
     const handleProfilePhoneChange = (e) => {
-        let input = e.target.value;
-        if (input.length < 3) {
-            setProfilePhone('+63 ');
-        } else if (input.startsWith('+63')) {
-            setProfilePhone(input);
-        } else {
-            setProfilePhone('+63 ' + input.replace(/\D/g, ''));
-        }
+        setProfilePhone(normalizePhone(e.target.value))
     }
 
     const handlePasswordPhoneChange = (e) => {
-        let input = e.target.value;
-        if (input.length < 3) {
-            setPasswordForm(prev => ({ ...prev, phone: '+63 ' }));
-        } else if (input.startsWith('+63')) {
-            setPasswordForm(prev => ({ ...prev, phone: input }));
-        } else {
-            setPasswordForm(prev => ({ ...prev, phone: '+63 ' + input.replace(/\D/g, '') }));
-        }
+        setPasswordForm(prev => ({ ...prev, phone: normalizePhone(e.target.value) }))
     }
 
     const saveProfilePhone = async () => {
+        const normalizedPhone = normalizePhone(profilePhone)
+        if (!normalizedPhone) {
+            toast.error('Phone number is required')
+            return
+        }
+
         setIsSavingPhone(true)
-        // Here you would normally call your API: await userApi.updateProfile({ phone: profilePhone })
-        setTimeout(() => {
+        try {
+            await updatePhone(normalizedPhone)
+            setProfilePhone(normalizedPhone)
+            setPasswordForm(prev => ({ ...prev, phone: normalizedPhone }))
+            setFormData(prev => ({ ...prev, ownerPhone: normalizedPhone }))
             toast.success('Mobile number updated successfully')
+        } catch (error) {
+            toast.error(getErrorMessage(error))
+        } finally {
             setIsSavingPhone(false)
-        }, 800)
+        }
     }
 
     const handleSendOtp = async () => {
-        if (!passwordForm.phone.trim() || passwordForm.phone === '+63 ') { toast.error('Phone number is required'); return }
+        if (!passwordForm.phone.trim()) { toast.error('Phone number is required'); return }
         setSubmitting(true)
         try {
             await sendPasswordOtp(passwordForm.phone)
@@ -320,7 +323,7 @@ export default function UserDashboard() {
     }
 
     // Derive original phone to check if changes were made
-    const originalPhone = user?.phone?.startsWith('+63') ? user.phone : `+63 ${user?.phone?.replace(/^0+/, '') || ''}`;
+    const originalPhone = normalizePhone(user?.phone || '')
 
     return (
         <div className='min-h-screen bg-slate-50 text-slate-800 font-sans'>

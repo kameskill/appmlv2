@@ -135,6 +135,26 @@ router.patch('/appointments/:id/status', async (req, res) => {
     }
 })
 
+// @route   DELETE /api/admin/appointments/:id
+// @desc    Delete appointment permanently
+// @access  Admin
+router.delete('/appointments/:id', async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ success: false, message: 'Invalid appointment ID' })
+    }
+
+    try {
+        const appointment = await Appointment.findByIdAndDelete(req.params.id)
+        if (!appointment) {
+            return res.status(404).json({ success: false, message: 'Appointment not found' })
+        }
+        res.json({ success: true, message: 'Appointment deleted successfully' })
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ success: false, message: 'Server error' })
+    }
+})
+
 // @route   GET /api/admin/analytics
 // @desc    Revenue and trend analytics
 // @access  Admin
