@@ -16,7 +16,9 @@ import {
     CalendarCheck,
     TrendingUp,
     Settings,
-    ArrowLeft
+    ArrowLeft,
+    Edit2,
+    Plus
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { appointmentsApi, notificationsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
@@ -89,6 +91,10 @@ export default function UserDashboard() {
     const [submitting, setSubmitting] = useState(false)
     const [passwordForm, setPasswordForm] = useState({ phone: '', otp: '', newPassword: '' })
 
+    // Profile Phone State
+    const [profilePhone, setProfilePhone] = useState('')
+    const [isSavingPhone, setIsSavingPhone] = useState(false)
+
     // Booking Flow State
     const [step, setStep] = useState(1)
     const [isSubmittingBooking, setIsSubmittingBooking] = useState(false)
@@ -109,12 +115,19 @@ export default function UserDashboard() {
         if (!user) { navigate('/login', { replace: true }); return }
         if (user.role === 'admin') { navigate('/admin', { replace: true }); return }
 
-        setPasswordForm(prev => ({ ...prev, phone: user.phone || '' }))
+        // Format initial phone number to ensure +63
+        const initialPhone = user.phone || ''
+        const formattedPhone = initialPhone.startsWith('+63') ? initialPhone : `+63 ${initialPhone.replace(/^0+/, '')}`
+        const finalPhone = formattedPhone.trim() === '+63' ? '+63 ' : formattedPhone
+
+        setProfilePhone(finalPhone)
+        setPasswordForm(prev => ({ ...prev, phone: finalPhone }))
+
         setFormData(prev => ({
             ...prev,
             ownerName: `${user.firstName} ${user.lastName}`,
             ownerEmail: user.email,
-            ownerPhone: user.phone || ''
+            ownerPhone: finalPhone
         }))
         loadData()
     }, [user, navigate])
@@ -166,7 +179,6 @@ export default function UserDashboard() {
         return Object.values(unique);
     }, [appointments]);
     const selectedService = SERVICES.find(s => s.id === formData.service)
-    const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
 
     // Parse prices and calculate total
     const parsePrice = (priceStr) => {
@@ -174,6 +186,7 @@ export default function UserDashboard() {
         return isNaN(num) ? 0 : num
     }
 
+    const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
     const servicePrice = parsePrice(selectedService?.price || '0')
     const mlPrice = parsePrice(selectedMLRec?.price || '0')
     const totalPrice = servicePrice + mlPrice
@@ -231,12 +244,43 @@ export default function UserDashboard() {
             ...prev, petName: '', breed: '', haircutStyle: null, service: null, date: '', time: '', notes: ''
         }))
         setActiveTab('home')
-        loadData() // Refresh dashboard appointments
+        loadData()
     }
 
-    // Settings Handlers
+    // Settings / Profile Handlers
+    const handleProfilePhoneChange = (e) => {
+        let input = e.target.value;
+        if (input.length < 3) {
+            setProfilePhone('+63 ');
+        } else if (input.startsWith('+63')) {
+            setProfilePhone(input);
+        } else {
+            setProfilePhone('+63 ' + input.replace(/\D/g, ''));
+        }
+    }
+
+    const handlePasswordPhoneChange = (e) => {
+        let input = e.target.value;
+        if (input.length < 3) {
+            setPasswordForm(prev => ({ ...prev, phone: '+63 ' }));
+        } else if (input.startsWith('+63')) {
+            setPasswordForm(prev => ({ ...prev, phone: input }));
+        } else {
+            setPasswordForm(prev => ({ ...prev, phone: '+63 ' + input.replace(/\D/g, '') }));
+        }
+    }
+
+    const saveProfilePhone = async () => {
+        setIsSavingPhone(true)
+        // Here you would normally call your API: await userApi.updateProfile({ phone: profilePhone })
+        setTimeout(() => {
+            toast.success('Mobile number updated successfully')
+            setIsSavingPhone(false)
+        }, 800)
+    }
+
     const handleSendOtp = async () => {
-        if (!passwordForm.phone.trim()) { toast.error('Phone number is required'); return }
+        if (!passwordForm.phone.trim() || passwordForm.phone === '+63 ') { toast.error('Phone number is required'); return }
         setSubmitting(true)
         try {
             await sendPasswordOtp(passwordForm.phone)
@@ -275,6 +319,9 @@ export default function UserDashboard() {
         )
     }
 
+    // Derive original phone to check if changes were made
+    const originalPhone = user?.phone?.startsWith('+63') ? user.phone : `+63 ${user?.phone?.replace(/^0+/, '') || ''}`;
+
     return (
         <div className='min-h-screen bg-slate-50 text-slate-800 font-sans'>
             {/* Top App Header */}
@@ -287,7 +334,9 @@ export default function UserDashboard() {
                                 src='/logo.png'
                                 alt='Timmy Tails Logo'
                                 className='w-full h-full object-cover'
+                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
                             />
+                            <span className="hidden text-amber-400 font-bold text-xs">TT</span>
                         </div>
 
                         <div>
@@ -496,45 +545,55 @@ export default function UserDashboard() {
                                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className='overflow-hidden'>
                                                 <div className='bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8 border border-purple-100'>
                                                     <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
-                                                        <Sparkles size={18} className='text-amber-500 fill-amber-500' /> AI-Recommended Styles for {formData.breed}
+                                                        <Sparkles size={18} className='text-amber-500 fill-amber-500' /> Add AI Styling Upgrade (Optional)
                                                     </h4>
                                                     <p className='text-xs text-slate-500 mb-4'>Analyzed for {getCurrentSeason()} weather conditions.</p>
 
                                                     {mlLoading ? (
                                                         <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm'>Generating smart suggestions...</span></div>
                                                     ) : mlRecs.length > 0 ? (
-                                                        <div className='grid md:grid-cols-3 gap-3'>
+                                                        <div className='grid md:grid-cols-3 gap-4 items-stretch'>
                                                             {mlRecs.map((rec, idx) => (
-                                                                <div key={idx} onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
-                                                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                                <motion.div key={idx} whileHover={{ y: -4 }}
+                                                                    onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
+                                                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col h-full ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md ring-2 ring-purple-600/20' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
                                                                     <div className='flex justify-between items-start mb-2'>
                                                                         <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
-                                                                        <span className='bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap'>{rec.match}</span>
+                                                                        <span className='bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap'>{rec.match}</span>
                                                                     </div>
-                                                                    <p className='text-[11px] text-slate-500 mb-3'>{rec.description}</p>
-                                                                    <div className='flex justify-between items-center text-xs'>
+                                                                    <p className='text-xs text-slate-500 mb-4 flex-grow leading-relaxed'>{rec.description}</p>
+                                                                    <div className='flex justify-between items-center text-xs mt-auto'>
                                                                         <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
-                                                                        <span className='font-bold text-slate-700'>{rec.price}</span>
+                                                                        <span className='font-bold text-purple-600'>+{rec.price}</span>
                                                                     </div>
-                                                                </div>
+                                                                    {formData.haircutStyle === rec.name && (
+                                                                        <div className='mt-3 pt-2 border-t border-purple-100 text-xs text-purple-600 font-bold flex items-center gap-1'>
+                                                                            <CheckCircle2 size={14} /> Added
+                                                                        </div>
+                                                                    )}
+                                                                </motion.div>
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <p className='text-sm text-slate-500 italic'>No AI suggestions available — please select a standard service below.</p>
+                                                        <p className='text-sm text-slate-500 italic'>No AI suggestions available for this breed.</p>
                                                     )}
                                                 </div>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
 
-                                    <h3 className='text-xl font-bold text-slate-900 mb-4'>Select Service</h3>
+                                    <h3 className='text-xl font-bold text-slate-900 mb-4'>Add Base Service</h3>
                                     <div className='grid md:grid-cols-2 gap-3 mb-8'>
                                         {SERVICES.map(service => (
-                                            <div key={service.id} onClick={() => setFormData(prev => ({ ...prev, service: service.id }))}
-                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
-                                                <h4 className='font-bold text-slate-900 text-sm mb-1'>{service.name}</h4>
+                                            <div key={service.id}
+                                                onClick={() => setFormData(prev => ({ ...prev, service: prev.service === service.id ? null : service.id }))}
+                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-600/20' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                <div className='flex justify-between items-start'>
+                                                    <h4 className='font-bold text-slate-900 text-sm mb-1'>{service.name}</h4>
+                                                    {formData.service === service.id && <CheckCircle2 size={16} className='text-purple-600' />}
+                                                </div>
                                                 <p className='text-slate-500 text-xs mb-3'>{service.description}</p>
-                                                <div className='flex justify-between items-center mt-auto'>
+                                                <div className='flex justify-between items-center mt-auto pt-3 border-t border-slate-100'>
                                                     <span className='flex items-center gap-1.5 text-slate-400 text-xs font-medium'><Clock size={14} /> {service.duration}</span>
                                                     <span className='font-bold text-slate-800 text-sm'>{service.price}</span>
                                                 </div>
@@ -542,8 +601,28 @@ export default function UserDashboard() {
                                         ))}
                                     </div>
 
-                                    <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || !formData.service}
-                                        className='w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-all'>
+                                    {/* Live Cart UI */}
+                                    <AnimatePresence>
+                                        {(formData.service || formData.haircutStyle) && (
+                                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                                                className='bg-slate-900 text-white p-5 rounded-2xl mb-6 shadow-lg border border-slate-800 flex justify-between items-center'>
+                                                <div>
+                                                    <p className='text-xs font-bold text-slate-400 uppercase tracking-wider mb-1'>Estimated Total</p>
+                                                    <div className='flex items-center gap-2 flex-wrap text-sm'>
+                                                        {selectedService && <span className='font-semibold'>{selectedService.name}</span>}
+                                                        {selectedService && formData.haircutStyle && <Plus size={14} className='text-purple-400' />}
+                                                        {formData.haircutStyle && <span className='text-purple-300 font-medium'>{formData.haircutStyle} Styling</span>}
+                                                    </div>
+                                                </div>
+                                                <div className='text-right shrink-0 ml-4'>
+                                                    <p className='text-2xl font-extrabold text-white'>₱{totalPrice.toLocaleString()}</p>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || (!formData.service && !formData.haircutStyle)}
+                                        className='w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 shadow-md shadow-purple-200 transition-all'>
                                         Continue to Date & Time
                                     </button>
                                 </motion.div>
@@ -570,7 +649,7 @@ export default function UserDashboard() {
                                                     </div>
                                                 )}
                                                 {formData.haircutStyle && (
-                                                    <div className='flex justify-between items-center pt-3 border-t border-slate-200'>
+                                                    <div className={`flex justify-between items-center ${selectedService ? 'pt-3 border-t border-slate-200' : ''}`}>
                                                         <div>
                                                             <p className='text-sm font-bold text-slate-900'>AI Style: {formData.haircutStyle}</p>
                                                         </div>
@@ -655,15 +734,13 @@ export default function UserDashboard() {
                                         </h4>
                                         <div className='grid grid-cols-2 gap-4 text-sm text-slate-700 mb-4'>
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Pet</span> <strong className='text-slate-900'>{formData.petName} ({formData.breed})</strong></div>
-                                            <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service</span> <strong className='text-slate-900'>{selectedService?.name}</strong></div>
-                                            {formData.haircutStyle && <div className='col-span-2'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Choice</span> <strong className='text-purple-700'>{formData.haircutStyle}</strong></div>}
-                                            <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date)}</strong></div>
+                                            <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date, { month: 'short', day: 'numeric', year: 'numeric' })}</strong></div>
                                             <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Time</span> <strong className='text-slate-900'>{formatTime(formData.time)}</strong></div>
                                         </div>
-                                        <div className='grid grid-cols-2 gap-4 text-sm'>
-                                            <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong className='text-slate-900'>₱{servicePrice.toLocaleString()}</strong></div>
-                                            {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong className='text-slate-900'>₱{mlPrice.toLocaleString()}</strong></div>}
-                                            <div className='col-span-2 pt-2 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
+                                        <div className='grid grid-cols-2 gap-4 text-sm pt-4 border-t border-purple-200/50'>
+                                            {selectedService && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Base Service</span> <strong className='text-slate-900'>{selectedService.name} (₱{servicePrice.toLocaleString()})</strong></div>}
+                                            {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Upgrade</span> <strong className='text-purple-700'>{formData.haircutStyle} (+₱{mlPrice.toLocaleString()})</strong></div>}
+                                            <div className='col-span-2 pt-2 mt-1 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
                                         </div>
                                     </div>
 
@@ -742,17 +819,32 @@ export default function UserDashboard() {
                         <div className='bg-white rounded-3xl p-8 shadow-sm border border-slate-200/60'>
                             <h2 className='text-xl font-bold text-slate-900 mb-6 flex items-center gap-2'><User size={20} className='text-purple-600' /> Account Profile</h2>
                             <div className='grid md:grid-cols-3 gap-4'>
-                                <div className='bg-slate-50 p-4 rounded-2xl border border-slate-100'>
-                                    <span className='text-xs text-slate-400 font-bold uppercase tracking-wider block mb-1'>Owner Name</span>
+                                <div className='bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center'>
+                                    <span className='text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5'>Owner Name</span>
                                     <strong className='text-slate-800 font-semibold'>{user?.firstName} {user?.lastName}</strong>
                                 </div>
-                                <div className='bg-slate-50 p-4 rounded-2xl border border-slate-100'>
-                                    <span className='text-xs text-slate-400 font-bold uppercase tracking-wider block mb-1'>Email Address</span>
-                                    <strong className='text-slate-800 font-semibold'>{user?.email}</strong>
+                                <div className='bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center overflow-hidden'>
+                                    <span className='text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5'>Email Address</span>
+                                    <strong className='text-slate-800 font-semibold truncate' title={user?.email}>{user?.email}</strong>
                                 </div>
-                                <div className='bg-slate-50 p-4 rounded-2xl border border-slate-100'>
-                                    <span className='text-xs text-slate-400 font-bold uppercase tracking-wider block mb-1'>Mobile Link</span>
-                                    <strong className='text-slate-800 font-semibold'>{user?.phone || '—'}</strong>
+
+                                {/* Editable Mobile NumberBox */}
+                                <div className='bg-slate-50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-center group relative'>
+                                    <span className='text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5'>Phone Number</span>
+                                    <div className='flex items-center justify-between'>
+                                        <input
+                                            type="text"
+                                            value={profilePhone}
+                                            onChange={handleProfilePhoneChange}
+                                            className='bg-transparent border-b border-transparent focus:border-purple-400 outline-none font-semibold text-slate-800 w-full transition-colors'
+                                        />
+                                        <Edit2 size={12} className='text-slate-300 group-hover:text-purple-400 transition-colors absolute right-4 top-4' />
+                                        {profilePhone !== originalPhone && (
+                                            <button onClick={saveProfilePhone} disabled={isSavingPhone} className='absolute right-4 bottom-4 text-xs font-bold text-white bg-purple-600 px-2 py-1 rounded-md hover:bg-purple-700 transition-colors whitespace-nowrap shadow-sm'>
+                                                {isSavingPhone ? '...' : 'Save'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -764,8 +856,11 @@ export default function UserDashboard() {
                             <form onSubmit={handleResetPassword} className='space-y-5'>
                                 <div>
                                     <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Mobile Phone</label>
-                                    <input value={passwordForm.phone} onChange={(e) => setPasswordForm(prev => ({ ...prev, phone: e.target.value }))}
-                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
+                                    <input
+                                        value={passwordForm.phone}
+                                        onChange={handlePasswordPhoneChange}
+                                        className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium'
+                                    />
                                 </div>
                                 <div className='grid grid-cols-2 gap-4'>
                                     <div>

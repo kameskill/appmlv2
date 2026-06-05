@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
     LogOut, BarChart3, Calendar, TrendingUp, Users, DollarSign,
-    CheckCircle, Clock, Loader2, RefreshCw, Bell, Sparkles, Send, Activity
+    CheckCircle, Clock, Loader2, RefreshCw, Bell, Sparkles, Send, Activity,
+    Trash2, ChevronDown, ChevronUp, Mail, Phone, FileText
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { adminApi, getErrorMessage } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { formatTime } from '../utils/formatters'
 
-// Upgraded to match UserDashboard styling
 const STATUS_STYLES = {
     pending: 'bg-amber-50 text-amber-700 border border-amber-200',
     confirmed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -38,6 +38,9 @@ export default function Admin() {
     const [statusFilter, setStatusFilter] = useState('')
     const [updatingId, setUpdatingId] = useState(null)
 
+    // New state to track which row is expanded
+    const [expandedId, setExpandedId] = useState(null)
+
     useEffect(() => {
         if (!user) { navigate('/login'); return }
         if (user.role !== 'admin') { toast.error('Admin access required'); navigate('/'); return }
@@ -52,7 +55,6 @@ export default function Admin() {
 
     const fetchAppointments = async () => {
         try {
-            // Removed the status query so we ALWAYS fetch the full list for the overview
             const { data } = await adminApi.getAppointments()
             setAppointments(data.appointments || [])
         } catch (e) { toast.error(getErrorMessage(e)) }
@@ -78,10 +80,10 @@ export default function Admin() {
         setLoading(false)
     }
 
-    // Only load all data initially or when explicitly refreshed
     useEffect(() => { if (user?.role === 'admin') loadAll() }, [user])
 
-    const handleStatusUpdate = async (id, newStatus) => {
+    const handleStatusUpdate = async (id, newStatus, e) => {
+        e.stopPropagation(); // Prevent row from expanding when changing status
         setUpdatingId(id)
         try {
             await adminApi.updateStatus(id, newStatus)
@@ -92,6 +94,20 @@ export default function Admin() {
             toast.error(getErrorMessage(e))
         } finally {
             setUpdatingId(null)
+        }
+    }
+
+    const handleDeleteAppointment = async (id, e) => {
+        e.stopPropagation(); // Prevent row from expanding
+        if (!window.confirm('Are you sure you want to delete this booking? This cannot be undone.')) return;
+
+        try {
+            await adminApi.deleteAppointment(id) // Ensure this endpoint exists in your api.js
+            toast.success('Booking removed successfully')
+            fetchAppointments()
+            fetchStats()
+        } catch (e) {
+            toast.error(getErrorMessage(e))
         }
     }
 
@@ -120,12 +136,16 @@ export default function Admin() {
         }
     }
 
-    // Apply the filter locally for the appointments tab
-    const filteredAppointments = statusFilter
-        ? appointments.filter(a => a.status === statusFilter)
-        : appointments;
+    // Filter and sort appointments ascending by date and time
+    const filteredAppointments = useMemo(() => {
+        let filtered = statusFilter ? appointments.filter(a => a.status === statusFilter) : [...appointments];
+        return filtered.sort((a, b) => {
+            const dateA = new Date(`${a.date}T${a.time || '00:00'}`);
+            const dateB = new Date(`${b.date}T${b.time || '00:00'}`);
+            return dateA - dateB;
+        });
+    }, [appointments, statusFilter]);
 
-    // Upgraded Stat Card
     const StatCard = ({ icon: Icon, label, value, change, color, bg }) => (
         <motion.div whileHover={{ y: -4 }} className='bg-white rounded-3xl p-6 shadow-sm border border-slate-200/60'>
             <div className='flex items-center justify-between mb-4'>
@@ -245,13 +265,15 @@ export default function Admin() {
                                 {appointments.length > 0 ? (
                                     <div className='space-y-4 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-slate-200'>
                                         {/* Uses the UNFILTERED appointments array so it always shows the latest */}
-                                        {appointments.slice(0, 5).map((a, idx) => (
+                                        {appointments.slice().sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)).slice(0, 5).map((a, idx) => (
                                             <div key={idx} className='flex items-start gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100'>
                                                 <div className='w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center shrink-0'>
                                                     <span className='font-bold text-slate-700 text-sm'>{a.petName?.slice(0, 1)}</span>
                                                 </div>
                                                 <div className='flex-1 min-w-0'>
-                                                    <p className='font-bold text-slate-900 text-sm truncate'>{a.petName} <span className='text-slate-400 font-medium'>({a.breed})</span></p>
+                                                    <p className='font-bold text-slate-900 text-sm truncate'>
+                                                        {a.petName} <span className='text-slate-400 font-medium'>({a.breed})</span>
+                                                    </p>
                                                     <p className='text-xs text-slate-500 mt-0.5 truncate'>{a.service}</p>
                                                     <p className='text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-2'>{formatDate(a.date)} · {formatTime(a.time)}</p>
                                                 </div>
@@ -300,56 +322,121 @@ export default function Admin() {
                                     <table className='w-full text-sm text-left'>
                                         <thead className='bg-slate-50 border-b border-slate-100 text-slate-500 text-[10px] uppercase tracking-wider font-bold'>
                                             <tr>
+                                                <th className='px-6 py-4 w-10'></th>
                                                 <th className='px-6 py-4'>Client & Pet</th>
                                                 <th className='px-6 py-4'>Service Info</th>
                                                 <th className='px-6 py-4'>Schedule</th>
-                                                <th className='px-6 py-4'>Price</th>
                                                 <th className='px-6 py-4'>Status</th>
                                                 <th className='px-6 py-4 text-right'>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className='divide-y divide-slate-100'>
-                                            {filteredAppointments.map((a) => (
-                                                <tr key={a._id} className='hover:bg-slate-50/80 transition-colors group'>
-                                                    <td className='px-6 py-4'>
-                                                        <p className='font-bold text-slate-900'>{a.ownerName}</p>
-                                                        <p className='text-xs text-slate-500 mt-0.5'>{a.petName} ({a.breed})</p>
-                                                    </td>
-                                                    <td className='px-6 py-4'>
-                                                        <p className='font-semibold text-slate-800'>{a.service}</p>
-                                                        {a.haircutStyle && <p className='text-xs text-purple-600 mt-0.5'>Style: {a.haircutStyle}</p>}
-                                                    </td>
-                                                    <td className='px-6 py-4'>
-                                                        <p className='font-bold text-slate-800'>{formatDate(a.date)}</p>
-                                                        <p className='text-xs text-slate-500 mt-0.5'>{formatTime(a.time)}</p>
-                                                    </td>
-                                                    <td className='px-6 py-4 font-bold text-slate-900'>
-                                                        ₱{a.price?.toLocaleString() || '—'}
-                                                    </td>
-                                                    <td className='px-6 py-4'>
-                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold ${STATUS_STYLES[a.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                                            {a.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className='px-6 py-4 text-right'>
-                                                        {updatingId === a._id ? (
-                                                            <div className='flex justify-end pr-4'><Loader2 className='animate-spin text-purple-600' size={18} /></div>
-                                                        ) : (
-                                                            <div className='inline-block relative'>
-                                                                <select value={a.status} onChange={(e) => handleStatusUpdate(a._id, e.target.value)}
-                                                                    className='appearance-none bg-white border border-slate-200 text-slate-700 py-1.5 pl-3 pr-8 rounded-lg text-xs font-bold cursor-pointer hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20'>
-                                                                    {['pending', 'confirmed', 'completed', 'cancelled'].map(s => (
-                                                                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <div className='pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400'>
-                                                                    <svg className='fill-current h-4 w-4' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z' /></svg>
+                                            {filteredAppointments.map((a) => {
+                                                const isExpanded = expandedId === a._id;
+
+                                                return (
+                                                    <React.Fragment key={a._id}>
+                                                        {/* Main Row */}
+                                                        <tr
+                                                            onClick={() => setExpandedId(isExpanded ? null : a._id)}
+                                                            className={`transition-colors cursor-pointer ${isExpanded ? 'bg-purple-50/50' : 'hover:bg-slate-50'}`}
+                                                        >
+                                                            <td className='px-6 py-4 text-slate-400'>
+                                                                {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                                            </td>
+                                                            <td className='px-6 py-4'>
+                                                                <div className='flex items-center gap-2'>
+                                                                    <p className='font-bold text-slate-900'>{a.ownerName}</p>
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                                <p className='text-xs text-slate-500 mt-0.5'>{a.petName} ({a.breed})</p>
+                                                            </td>
+                                                            <td className='px-6 py-4'>
+                                                                <p className='font-semibold text-slate-800'>{a.service}</p>
+                                                                {a.haircutStyle && <p className='text-xs text-purple-600 mt-0.5 font-medium'>Style: {a.haircutStyle}</p>}
+                                                            </td>
+                                                            <td className='px-6 py-4'>
+                                                                <p className='font-bold text-slate-800'>{formatDate(a.date)}</p>
+                                                                <p className='text-xs text-slate-500 mt-0.5'>{formatTime(a.time)}</p>
+                                                            </td>
+                                                            <td className='px-6 py-4'>
+                                                                <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold ${STATUS_STYLES[a.status] || 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                                                    {a.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className='px-6 py-4 text-right'>
+                                                                <div className='flex justify-end items-center gap-3'>
+                                                                    {updatingId === a._id ? (
+                                                                        <Loader2 className='animate-spin text-purple-600' size={18} />
+                                                                    ) : (
+                                                                        <div className='inline-block relative' onClick={e => e.stopPropagation()}>
+                                                                            <select value={a.status} onChange={(e) => handleStatusUpdate(a._id, e.target.value, e)}
+                                                                                className='appearance-none bg-white border border-slate-200 text-slate-700 py-1.5 pl-3 pr-8 rounded-lg text-xs font-bold cursor-pointer hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20'>
+                                                                                {['pending', 'confirmed', 'completed', 'cancelled'].map(s => (
+                                                                                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                            <div className='pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400'>
+                                                                                <ChevronDown size={14} />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    {/* Delete Fake/Spam Booking Button */}
+                                                                    <button
+                                                                        onClick={(e) => handleDeleteAppointment(a._id, e)}
+                                                                        className='text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors'
+                                                                        title='Delete Booking'
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+
+                                                        {/* Expanded Details Row */}
+                                                        <AnimatePresence>
+                                                            {isExpanded && (
+                                                                <tr>
+                                                                    <td colSpan={6} className='p-0 border-b border-slate-100'>
+                                                                        <motion.div
+                                                                            initial={{ height: 0, opacity: 0 }}
+                                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                                            exit={{ height: 0, opacity: 0 }}
+                                                                            className='overflow-hidden bg-slate-50/80 border-t border-slate-100'
+                                                                        >
+                                                                            <div className='p-6 md:pl-20 grid md:grid-cols-3 gap-6'>
+                                                                                <div className='space-y-3'>
+                                                                                    <h4 className='text-xs font-bold text-slate-400 uppercase tracking-wider'>Contact Info</h4>
+                                                                                    <p className='flex items-center gap-2 text-sm text-slate-700'>
+                                                                                        <Mail size={14} className='text-slate-400' /> {a.ownerEmail || 'No email provided'}
+                                                                                    </p>
+                                                                                    <p className='flex items-center gap-2 text-sm text-slate-700'>
+                                                                                        <Phone size={14} className='text-slate-400' /> {a.ownerPhone || 'No phone provided'}
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className='space-y-3'>
+                                                                                    <h4 className='text-xs font-bold text-slate-400 uppercase tracking-wider'>Financial</h4>
+                                                                                    <p className='text-sm text-slate-700 font-medium'>
+                                                                                        Total Price: <span className='text-emerald-600 font-bold'>₱{a.price?.toLocaleString() || '—'}</span>
+                                                                                    </p>
+                                                                                </div>
+                                                                                <div className='space-y-3'>
+                                                                                    <h4 className='text-xs font-bold text-slate-400 uppercase tracking-wider'>Special Notes</h4>
+                                                                                    <div className='flex items-start gap-2 bg-white p-3 rounded-xl border border-slate-200'>
+                                                                                        <FileText size={14} className='text-slate-400 shrink-0 mt-0.5' />
+                                                                                        <p className='text-sm text-slate-600 italic'>
+                                                                                            {a.notes ? a.notes : 'No special requests provided.'}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </motion.div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </React.Fragment>
+                                                )
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

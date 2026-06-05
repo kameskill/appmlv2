@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { appointmentsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
@@ -144,9 +144,10 @@ export default function Booking() {
 
                     <div className='bg-purple-50 rounded-2xl p-6 text-left mb-8 border border-purple-100/50 text-sm space-y-3'>
                         <p><strong className="text-slate-700">Pet:</strong> <span className="text-slate-600">{formData.petName} ({formData.breed})</span></p>
-                        <p><strong className="text-slate-700">Service:</strong> <span className="text-slate-600">{selectedService?.name}</span></p>
-                        {formData.haircutStyle && <p><strong className="text-slate-700">Style:</strong> <span className="text-slate-600">{formData.haircutStyle}</span></p>}
-                        <p><strong className="text-slate-700">Date:</strong> <span className="text-slate-600">{formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
+                        {selectedService && <p><strong className="text-slate-700">Base Service:</strong> <span className="text-slate-600">{selectedService.name}</span></p>}
+                        {formData.haircutStyle && <p><strong className="text-slate-700">AI Styling Upgrade:</strong> <span className="text-slate-600">{formData.haircutStyle}</span></p>}
+                        <p><strong className="text-slate-700">Total Price:</strong> <span className="text-slate-600 font-bold text-purple-700">₱{totalPrice.toLocaleString()}</span></p>
+                        <p className='pt-2 mt-2 border-t border-purple-200/50'><strong className="text-slate-700">Date:</strong> <span className="text-slate-600">{formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
                         <p><strong className="text-slate-700">Time:</strong> <span className="text-slate-600">{formatTime(formData.time)}</span></p>
                     </div>
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -190,7 +191,7 @@ export default function Booking() {
 
                 <AnimatePresence mode='wait'>
                     {/* ── Step 1 ─────────────────────────────────────────────── */}
-                    {step === 1 && (
+                    {step === 1 && !isBooked && (
                         <motion.div key='step1' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
                             <h3 className='text-xl font-bold text-slate-900 mb-6'>Pet Information</h3>
                             <div className='grid md:grid-cols-2 gap-5 mb-8'>
@@ -215,7 +216,7 @@ export default function Booking() {
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className='overflow-hidden'>
                                         <div className='bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8 border border-purple-100'>
                                             <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
-                                                <Sparkles size={18} className='text-amber-500 fill-amber-500' /> AI-Recommended Styles for {formData.breed}
+                                                <Sparkles size={18} className='text-amber-500 fill-amber-500' /> Add AI Styling Upgrade (Optional)
                                             </h4>
                                             <p className='text-xs text-slate-500 mb-4'>Analyzed for {getCurrentSeason()} weather conditions.</p>
 
@@ -225,8 +226,9 @@ export default function Booking() {
                                                 <div className='grid md:grid-cols-3 gap-4 items-stretch'>
                                                     {mlRecs.map((rec, idx) => (
                                                         <motion.div key={idx} whileHover={{ y: -4 }}
+                                                            // Logic: Click to toggle on or off
                                                             onClick={() => setFormData(prev => ({ ...prev, haircutStyle: formData.haircutStyle === rec.name ? null : rec.name }))}
-                                                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col h-full ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                            className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col h-full ${formData.haircutStyle === rec.name ? 'border-purple-600 bg-white shadow-md ring-2 ring-purple-600/20' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
                                                             <div className='flex justify-between items-start mb-2'>
                                                                 <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
                                                                 <span className='bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap'>{rec.match}</span>
@@ -234,30 +236,35 @@ export default function Booking() {
                                                             <p className='text-xs text-slate-500 mb-4 flex-grow leading-relaxed'>{rec.description}</p>
                                                             <div className='flex justify-between items-center text-xs mt-auto'>
                                                                 <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
-                                                                <span className='font-bold text-purple-600'>{rec.price}</span>
+                                                                <span className='font-bold text-purple-600'>+{rec.price}</span>
                                                             </div>
                                                             {formData.haircutStyle === rec.name && (
                                                                 <div className='mt-3 pt-2 border-t border-purple-100 text-xs text-purple-600 font-bold flex items-center gap-1'>
-                                                                    <CheckCircle2 size={14} /> Selected
+                                                                    <CheckCircle2 size={14} /> Added
                                                                 </div>
                                                             )}
                                                         </motion.div>
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <p className='text-sm text-slate-500 italic'>No AI suggestions available — please select a standard service below.</p>
+                                                <p className='text-sm text-slate-500 italic'>No AI suggestions available for this breed.</p>
                                             )}
                                         </div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
 
-                            <h3 className='text-xl font-bold text-slate-900 mb-4'>Select Service</h3>
+                            <h3 className='text-xl font-bold text-slate-900 mb-4'>Add Base Service</h3>
                             <div className='grid md:grid-cols-2 gap-3 mb-8'>
                                 {SERVICES.map(service => (
-                                    <div key={service.id} onClick={() => setFormData(prev => ({ ...prev, service: service.id }))}
-                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
-                                        <h4 className='font-bold text-slate-900 text-sm mb-1'>{service.name}</h4>
+                                    <div key={service.id}
+                                        // Logic: Click to toggle on or off independently
+                                        onClick={() => setFormData(prev => ({ ...prev, service: prev.service === service.id ? null : service.id }))}
+                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.service === service.id ? 'border-purple-600 bg-purple-50 ring-2 ring-purple-600/20' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                        <div className='flex justify-between items-start'>
+                                            <h4 className='font-bold text-slate-900 text-sm mb-1'>{service.name}</h4>
+                                            {formData.service === service.id && <CheckCircle2 size={16} className='text-purple-600' />}
+                                        </div>
                                         <p className='text-slate-500 text-xs mb-3'>{service.description}</p>
                                         <div className='flex justify-between items-center mt-auto pt-3 border-t border-slate-100'>
                                             <span className='flex items-center gap-1.5 text-slate-400 text-xs font-medium'><Clock size={14} /> {service.duration}</span>
@@ -267,15 +274,36 @@ export default function Booking() {
                                 ))}
                             </div>
 
-                            <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || !formData.service}
-                                className='w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 transition-all'>
+                            {/* Live Cart UI */}
+                            <AnimatePresence>
+                                {(formData.service || formData.haircutStyle) && (
+                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                                        className='bg-slate-900 text-white p-5 rounded-2xl mb-6 shadow-lg border border-slate-800 flex justify-between items-center'>
+                                        <div>
+                                            <p className='text-xs font-bold text-slate-400 uppercase tracking-wider mb-1'>Estimated Total</p>
+                                            <div className='flex items-center gap-2 flex-wrap text-sm'>
+                                                {selectedService && <span className='font-semibold'>{selectedService.name}</span>}
+                                                {selectedService && formData.haircutStyle && <Plus size={14} className='text-purple-400' />}
+                                                {formData.haircutStyle && <span className='text-purple-300 font-medium'>{formData.haircutStyle} Styling</span>}
+                                            </div>
+                                        </div>
+                                        <div className='text-right shrink-0 ml-4'>
+                                            <p className='text-2xl font-extrabold text-white'>₱{totalPrice.toLocaleString()}</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Continue Button requires AT LEAST one selection */}
+                            <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || (!formData.service && !formData.haircutStyle)}
+                                className='w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 shadow-md shadow-purple-200 transition-all'>
                                 Continue to Date & Time
                             </button>
                         </motion.div>
                     )}
 
                     {/* ── Step 2 ─────────────────────────────────────────────── */}
-                    {step === 2 && (
+                    {step === 2 && !isBooked && (
                         <motion.div key='step2' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
                             <h3 className='text-xl font-bold text-slate-900 mb-6'>Select Date & Time</h3>
 
@@ -295,7 +323,7 @@ export default function Booking() {
                                             </div>
                                         )}
                                         {formData.haircutStyle && (
-                                            <div className='flex justify-between items-center pt-3 border-t border-slate-200'>
+                                            <div className={`flex justify-between items-center ${selectedService ? 'pt-3 border-t border-slate-200' : ''}`}>
                                                 <div>
                                                     <p className='text-sm font-bold text-slate-900'>AI Style: {formData.haircutStyle}</p>
                                                 </div>
@@ -346,7 +374,7 @@ export default function Booking() {
                     )}
 
                     {/* ── Step 3 ─────────────────────────────────────────────── */}
-                    {step === 3 && (
+                    {step === 3 && !isBooked && (
                         <motion.div key='step3' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
                             <h3 className='text-xl font-bold text-slate-900 mb-6'>Confirm Details</h3>
 
@@ -380,26 +408,22 @@ export default function Booking() {
                                 </h4>
                                 <div className='grid grid-cols-2 gap-4 text-sm text-slate-700 mb-4'>
                                     <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Pet</span> <strong className='text-slate-900'>{formData.petName} ({formData.breed})</strong></div>
-                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service</span> <strong className='text-slate-900'>{selectedService?.name}</strong></div>
-                                    {formData.haircutStyle && <div className='col-span-2'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Choice</span> <strong className='text-purple-700'>{formData.haircutStyle}</strong></div>}
-                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong></div>
+                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Date</span> <strong className='text-slate-900'>{formatDate(formData.date, { month: 'short', day: 'numeric', year: 'numeric' })}</strong></div>
                                     <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Time</span> <strong className='text-slate-900'>{formatTime(formData.time)}</strong></div>
                                 </div>
-                                <div className='grid grid-cols-2 gap-4 text-sm'>
-                                    <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Service Price</span> <strong className='text-slate-900'>₱{servicePrice.toLocaleString()}</strong></div>
-                                    {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Price</span> <strong className='text-slate-900'>₱{mlPrice.toLocaleString()}</strong></div>}
-                                    <div className='col-span-2 pt-2 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
+                                <div className='grid grid-cols-2 gap-4 text-sm pt-4 border-t border-purple-200/50'>
+                                    {selectedService && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>Base Service</span> <strong className='text-slate-900'>{selectedService.name} (₱{servicePrice.toLocaleString()})</strong></div>}
+                                    {formData.haircutStyle && <div><span className='text-slate-400 block text-xs uppercase tracking-wider mb-0.5'>AI Style Upgrade</span> <strong className='text-purple-700'>{formData.haircutStyle} (+₱{mlPrice.toLocaleString()})</strong></div>}
+                                    <div className='col-span-2 pt-2 mt-1 border-t border-purple-200'><span className='text-slate-400 block text-xs uppercase tracking-wider mb-1 font-bold'>Total Amount</span> <strong className='text-lg text-purple-700'>₱{totalPrice.toLocaleString()}</strong></div>
                                 </div>
                             </div>
 
                             <div className='flex gap-3'>
-                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>← Back</button>
-                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
-                                    className='w-2/3 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-lg transition-all flex justify-center items-center gap-2'>
-                                    {isSubmitting ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
-                                </motion.button>
+                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
+                                <button onClick={handleSubmitBooking} disabled={isSubmittingBooking || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
+                                    className='w-2/3 bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-purple-700 shadow-md shadow-purple-200 transition-all flex justify-center items-center gap-2'>
+                                    {isSubmittingBooking ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
+                                </button>
                             </div>
                         </motion.div>
                     )}
