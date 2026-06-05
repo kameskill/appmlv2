@@ -38,6 +38,10 @@ export const contactApi = {
     send: (data) => api.post('/contact', data)
 }
 
+export const servicesApi = {
+    getAll: () => api.get('/services')
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const adminApi = {
     getStats: () => api.get('/admin/stats'),
@@ -47,7 +51,8 @@ export const adminApi = {
     getAnalytics: () => api.get('/admin/analytics'),
     getContacts: () => api.get('/admin/contacts'),
     getNotifications: () => api.get('/admin/notifications'),
-    createNotification: (data) => api.post('/admin/notifications', data)
+    createNotification: (data) => api.post('/admin/notifications', data),
+    updateServicePrice: (id, price) => api.put(`/services/${id}`, { price })
 }
 
 // ── Notifications ──────────────────────────────────────────────────────────────

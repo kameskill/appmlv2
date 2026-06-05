@@ -3,16 +3,8 @@ const router = express.Router()
 const mongoose = require('mongoose')
 const { body, validationResult } = require('express-validator')
 const Appointment = require('../models/Appointment')
+const Service = require('../models/Service')
 const { protect, optionalProtect } = require('../middleware/auth')
-
-const SERVICE_PRICES = {
-    'Full Grooming Package': 1200,
-    'Bath & Brush': 600,
-    'Haircut Special': 900,
-    'Quick Trim': 400,
-    'Teeth Cleaning': 500,
-    'De-shedding Treatment': 700
-}
 
 // @route   POST /api/appointments
 // @desc    Create a new appointment
@@ -49,6 +41,22 @@ router.post(
                 return res.status(400).json({ success: false, message: 'This time slot is already booked. Please choose another time.' })
             }
 
+            let price = 0;
+            const serviceData = await Service.findOne({ name: service });
+            if (serviceData) {
+                price = serviceData.price;
+            } else {
+                const SERVICE_PRICES = {
+                    'Full Grooming Package': 1200,
+                    'Bath & Brush': 600,
+                    'Haircut Special': 900,
+                    'Quick Trim': 400,
+                    'Teeth Cleaning': 500,
+                    'De-shedding Treatment': 700
+                }
+                price = SERVICE_PRICES[service] || 0;
+            }
+
             const appointment = await Appointment.create({
                 user: req.user ? req.user._id : null,
                 petName,
@@ -61,7 +69,7 @@ router.post(
                 ownerEmail,
                 ownerPhone,
                 notes: notes || '',
-                price: SERVICE_PRICES[service] || 0
+                price: price
             })
 
             res.status(201).json({

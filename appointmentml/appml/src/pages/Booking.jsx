@@ -3,19 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { appointmentsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
+import { appointmentsApi, mlRecommendApi, getErrorMessage, servicesApi } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { useAdminRedirect } from '../utils/useAdminRedirect'
 import { formatTime } from '../utils/formatters'
-
-const SERVICES = [
-    { id: 1, name: 'Full Grooming Package', description: 'Complete grooming with bath, haircut, nail trim, and ear cleaning', duration: '120 min', price: '₱1,200' },
-    { id: 2, name: 'Bath & Brush', description: 'Relaxing bath with premium shampoo and thorough brushing', duration: '60 min', price: '₱600' },
-    { id: 3, name: 'Haircut Special', description: 'Professional haircut with breed-specific styling', duration: '90 min', price: '₱900' },
-    { id: 4, name: 'Quick Trim', description: 'Fast maintenance service for nails, paws, and sanitary trimming', duration: '30 min', price: '₱400' },
-    { id: 5, name: 'Teeth Cleaning', description: 'Professional dental cleaning and breath freshening', duration: '45 min', price: '₱500' },
-    { id: 6, name: 'De-shedding Treatment', description: 'Special treatment to reduce shedding and promote healthy coat', duration: '75 min', price: '₱700' }
-]
 
 const BREEDS = [
     'Labrador Retriever', 'Golden Retriever', 'German Shepherd', 'Bulldog',
@@ -45,6 +36,24 @@ export default function Booking() {
     const [mlLoading, setMlLoading] = useState(false)
     const [bookedSlots, setBookedSlots] = useState([])
     const [slotsLoading, setSlotsLoading] = useState(false)
+    const [services, setServices] = useState([])
+
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const { data } = await servicesApi.getAll();
+                // Map the price from number to string for frontend compatibility if needed
+                const mappedServices = (data.services || []).map(s => ({
+                    ...s,
+                    price: `₱${s.price.toLocaleString()}`
+                }));
+                setServices(mappedServices);
+            } catch (error) {
+                console.error('Failed to fetch services', error);
+            }
+        };
+        fetchServices();
+    }, []);
 
     useEffect(() => {
         if (user) {
@@ -102,7 +111,7 @@ export default function Booking() {
         }
         setIsSubmitting(true)
         try {
-            const selectedSvc = SERVICES.find(s => s.id === formData.service)
+            const selectedSvc = services.find(s => s.id === formData.service)
             await appointmentsApi.create({
                 ...formData,
                 service: selectedSvc?.name
@@ -115,7 +124,7 @@ export default function Booking() {
         }
     }
 
-    const selectedService = SERVICES.find(s => s.id === formData.service)
+    const selectedService = services.find(s => s.id === formData.service)
     const selectedMLRec = mlRecs.find(r => r.name === formData.haircutStyle)
 
     const parsePrice = (priceStr) => {
@@ -256,7 +265,7 @@ export default function Booking() {
 
                             <h3 className='text-xl font-bold text-slate-900 mb-4'>Add Base Service</h3>
                             <div className='grid md:grid-cols-2 gap-3 mb-8'>
-                                {SERVICES.map(service => (
+                                {services.map(service => (
                                     <div key={service.id}
                                         // Logic: Click to toggle on or off independently
                                         onClick={() => setFormData(prev => ({ ...prev, service: prev.service === service.id ? null : service.id }))}

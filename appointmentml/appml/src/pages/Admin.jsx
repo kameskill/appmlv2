@@ -7,7 +7,7 @@ import {
     Trash2, ChevronDown, ChevronUp, Mail, Phone, FileText, AlertTriangle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { adminApi, getErrorMessage } from '../utils/api'
+import { adminApi, getErrorMessage, servicesApi } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { formatTime } from '../utils/formatters'
 
@@ -34,6 +34,9 @@ export default function Admin() {
     const [appointments, setAppointments] = useState([])
     const [analytics, setAnalytics] = useState(null)
     const [notifications, setNotifications] = useState([])
+    const [servicesData, setServicesData] = useState([])
+    const [editingServiceId, setEditingServiceId] = useState(null)
+    const [editPrice, setEditPrice] = useState('')
     const [notificationForm, setNotificationForm] = useState({ title: '', message: '' })
     const [statusFilter, setStatusFilter] = useState('')
     const [updatingId, setUpdatingId] = useState(null)
@@ -75,9 +78,16 @@ export default function Admin() {
         } catch (e) { toast.error(getErrorMessage(e)) }
     }
 
+    const fetchServices = async () => {
+        try {
+            const { data } = await servicesApi.getAll()
+            setServicesData(data.services || [])
+        } catch (e) { toast.error(getErrorMessage(e)) }
+    }
+
     const loadAll = async () => {
         setLoading(true)
-        await Promise.all([fetchStats(), fetchAppointments(), fetchAnalytics(), fetchNotifications()])
+        await Promise.all([fetchStats(), fetchAppointments(), fetchAnalytics(), fetchNotifications(), fetchServices()])
         setLoading(false)
     }
 
@@ -137,6 +147,21 @@ export default function Admin() {
             toast.success('Notification sent to all users')
             setNotificationForm({ title: '', message: '' })
             fetchNotifications()
+        } catch (e) {
+            toast.error(getErrorMessage(e))
+        }
+    }
+
+    const handleUpdatePrice = async (id) => {
+        if (!editPrice || isNaN(editPrice) || editPrice <= 0) {
+            toast.error('Please enter a valid price')
+            return
+        }
+        try {
+            await adminApi.updateServicePrice(id, editPrice)
+            toast.success('Service price updated successfully')
+            setEditingServiceId(null)
+            fetchServices()
         } catch (e) {
             toast.error(getErrorMessage(e))
         }
@@ -213,6 +238,7 @@ export default function Admin() {
                     {[
                         { id: 'overview', label: 'Overview', icon: BarChart3 },
                         { id: 'appointments', label: 'Appointments', icon: Calendar },
+                        { id: 'services', label: 'Services Pricing', icon: DollarSign },
                         { id: 'analytics', label: 'Analytics', icon: TrendingUp },
                         { id: 'ml-trends', label: 'ML Trends', icon: Sparkles },
                         { id: 'notifications', label: 'Notifications', icon: Bell }
@@ -447,6 +473,85 @@ export default function Admin() {
                                     </table>
                                 </div>
                             )}
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* --- SERVICES PRICING TAB --- */}
+                {activeTab === 'services' && (
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className='space-y-6'>
+                        <div className='bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden'>
+                            <div className='p-6 border-b border-slate-100'>
+                                <h2 className='text-lg font-bold text-slate-900 flex items-center gap-2'>
+                                    <DollarSign size={20} className='text-purple-600' /> Manage Service Prices
+                                </h2>
+                                <p className='text-sm text-slate-500 mt-1'>Update the prices of available grooming services. These changes will reflect immediately for all users.</p>
+                            </div>
+                            
+                            <div className='overflow-x-auto'>
+                                <table className='w-full text-sm text-left'>
+                                    <thead className='bg-slate-50 border-b border-slate-100 text-slate-500 text-[10px] uppercase tracking-wider font-bold'>
+                                        <tr>
+                                            <th className='px-6 py-4'>Service</th>
+                                            <th className='px-6 py-4'>Description</th>
+                                            <th className='px-6 py-4'>Duration</th>
+                                            <th className='px-6 py-4'>Price (₱)</th>
+                                            <th className='px-6 py-4 text-right'>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className='divide-y divide-slate-100'>
+                                        {servicesData.map((service) => (
+                                            <tr key={service.id} className='hover:bg-slate-50 transition-colors'>
+                                                <td className='px-6 py-4 font-bold text-slate-900'>{service.name}</td>
+                                                <td className='px-6 py-4 text-slate-600 max-w-xs truncate' title={service.description}>{service.description}</td>
+                                                <td className='px-6 py-4 text-slate-500'>{service.duration}</td>
+                                                <td className='px-6 py-4'>
+                                                    {editingServiceId === service.id ? (
+                                                        <div className='flex items-center gap-2'>
+                                                            <span className='text-slate-400'>₱</span>
+                                                            <input 
+                                                                type='number' 
+                                                                className='w-24 px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-sm'
+                                                                value={editPrice}
+                                                                onChange={(e) => setEditPrice(e.target.value)}
+                                                                min="0"
+                                                                step="0.01"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <span className='font-bold text-emerald-600 text-base'>₱{service.price?.toLocaleString()}</span>
+                                                    )}
+                                                </td>
+                                                <td className='px-6 py-4 text-right'>
+                                                    {editingServiceId === service.id ? (
+                                                        <div className='flex justify-end items-center gap-2'>
+                                                            <button 
+                                                                onClick={() => handleUpdatePrice(service.id)}
+                                                                className='px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors'>
+                                                                Save
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setEditingServiceId(null)}
+                                                                className='px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors'>
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditingServiceId(service.id)
+                                                                setEditPrice(service.price)
+                                                            }}
+                                                            className='px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg text-xs font-bold hover:bg-purple-100 transition-colors'>
+                                                            Edit Price
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </motion.div>
                 )}
