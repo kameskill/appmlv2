@@ -51,6 +51,12 @@ export function AuthProvider({ children }) {
         return data
     }
 
+    const updatePhone = async (phone) => {
+        const { data } = await authApi.updatePhone({ phone })
+        setUser(data.user)
+        return data
+    }
+
     const logout = () => {
         localStorage.removeItem('token')
         setUser(null)
@@ -65,6 +71,7 @@ export function AuthProvider({ children }) {
             sendRegisterOtp,
             sendPasswordOtp,
             resetPasswordWithOtp,
+            updatePhone,
             logout
         }}>
             {children}

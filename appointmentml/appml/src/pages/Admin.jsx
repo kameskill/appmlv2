@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
     LogOut, BarChart3, Calendar, TrendingUp, Users, DollarSign,
     CheckCircle, Clock, Loader2, RefreshCw, Bell, Sparkles, Send, Activity,
-    Trash2, ChevronDown, ChevronUp, Mail, Phone, FileText
+    Trash2, ChevronDown, ChevronUp, Mail, Phone, FileText, AlertTriangle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { adminApi, getErrorMessage } from '../utils/api'
@@ -37,6 +37,7 @@ export default function Admin() {
     const [notificationForm, setNotificationForm] = useState({ title: '', message: '' })
     const [statusFilter, setStatusFilter] = useState('')
     const [updatingId, setUpdatingId] = useState(null)
+    const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
     // New state to track which row is expanded
     const [expandedId, setExpandedId] = useState(null)
@@ -99,15 +100,20 @@ export default function Admin() {
 
     const handleDeleteAppointment = async (id, e) => {
         e.stopPropagation(); // Prevent row from expanding
-        if (!window.confirm('Are you sure you want to delete this booking? This cannot be undone.')) return;
+        setPendingDeleteId(id)
+    }
 
+    const confirmDeleteAppointment = async () => {
+        if (!pendingDeleteId) return
         try {
-            await adminApi.deleteAppointment(id) // Ensure this endpoint exists in your api.js
+            await adminApi.deleteAppointment(pendingDeleteId)
             toast.success('Booking removed successfully')
             fetchAppointments()
             fetchStats()
         } catch (e) {
             toast.error(getErrorMessage(e))
+        } finally {
+            setPendingDeleteId(null)
         }
     }
 
@@ -638,6 +644,50 @@ export default function Admin() {
                     </motion.div>
                 )}
             </div>
+
+            <AnimatePresence>
+                {pendingDeleteId && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className='fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4'
+                        onClick={() => setPendingDeleteId(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.96, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.96, opacity: 0 }}
+                            className='w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl p-6'
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className='flex items-start gap-3'>
+                                <div className='p-2 rounded-xl bg-rose-50 text-rose-600'>
+                                    <AlertTriangle size={18} />
+                                </div>
+                                <div>
+                                    <h3 className='text-base font-bold text-slate-900'>Delete this booking?</h3>
+                                    <p className='text-sm text-slate-600 mt-1'>This action is permanent and cannot be undone.</p>
+                                </div>
+                            </div>
+                            <div className='mt-6 flex justify-end gap-2'>
+                                <button
+                                    onClick={() => setPendingDeleteId(null)}
+                                    className='px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors'
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDeleteAppointment}
+                                    className='px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors'
+                                >
+                                    Delete Booking
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }
