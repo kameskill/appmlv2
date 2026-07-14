@@ -16,8 +16,23 @@ const notificationSchema = new mongoose.Schema(
         },
         audience: {
             type: String,
-            enum: ['all-users'],
+            enum: ['all-users', 'user'],
             default: 'all-users'
+        },
+        targetUser: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: false
+        },
+        type: {
+            type: String,
+            enum: ['broadcast', 'appointment-status'],
+            default: 'broadcast'
+        },
+        appointment: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Appointment',
+            required: false
         },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,

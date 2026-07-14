@@ -1,9 +1,19 @@
 import { motion } from 'framer-motion'
 import { Sparkles, Bath, Scissors, Clock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function Services() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  const handleBookingClick = () => {
+    if (!user) {
+      navigate('/login', { state: { from: '/booking' } })
+      return
+    }
+    navigate('/booking')
+  }
 
   const services = [
     {
@@ -105,7 +115,7 @@ export default function Services() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => navigate('/booking')}
+                  onClick={handleBookingClick}
                   className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'
                 >
                   Book Now

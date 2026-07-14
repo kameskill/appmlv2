@@ -1,8 +1,18 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function CTA() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  const handleBookingClick = () => {
+    if (!user) {
+      navigate('/login', { state: { from: '/booking' } })
+      return
+    }
+    navigate('/booking')
+  }
 
   return (
     <section className='py-20 px-4'>
@@ -22,7 +32,7 @@ export default function CTA() {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/booking')}
+          onClick={handleBookingClick}
           className='bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/50'
         >
           Book Appointment Now

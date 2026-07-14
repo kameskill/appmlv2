@@ -3,7 +3,8 @@ const router = express.Router()
 const mongoose = require('mongoose')
 const { body, validationResult } = require('express-validator')
 const Appointment = require('../models/Appointment')
-const { protect, optionalProtect } = require('../middleware/auth')
+const Notification = require('../models/Notification')
+const { protect } = require('../middleware/auth')
 
 const SERVICE_PRICES = {
     'Full Grooming Package': 1200,
@@ -16,10 +17,10 @@ const SERVICE_PRICES = {
 
 // @route   POST /api/appointments
 // @desc    Create a new appointment
-// @access  Public (guests can also book)
+// @access  Private
 router.post(
     '/',
-    optionalProtect,
+    protect,
     [
         body('petName').notEmpty().trim().withMessage('Pet name is required'),
         body('breed').notEmpty().trim().withMessage('Breed is required'),
@@ -50,7 +51,7 @@ router.post(
             }
 
             const appointment = await Appointment.create({
-                user: req.user ? req.user._id : null,
+                user: req.user._id,
                 petName,
                 breed,
                 haircutStyle: haircutStyle || null,
@@ -138,9 +139,27 @@ router.delete('/:id', protect, async (req, res) => {
         if (!isOwner && !isAdmin) {
             return res.status(403).json({ success: false, message: 'Not authorized' })
         }
+        if (appointment.status === 'completed') {
+            return res.status(400).json({ success: false, message: 'Completed appointments can no longer be cancelled' })
+        }
+        if (appointment.status === 'cancelled') {
+            return res.json({ success: true, message: 'Appointment already cancelled', appointment })
+        }
 
         appointment.status = 'cancelled'
         await appointment.save()
+
+        if (appointment.user) {
+            await Notification.create({
+                title: 'Booking Cancelled',
+                message: `Your ${appointment.service} booking on ${appointment.date} at ${appointment.time} has been cancelled.`,
+                audience: 'user',
+                targetUser: appointment.user,
+                type: 'appointment-status',
+                appointment: appointment._id,
+                createdBy: isAdmin ? req.user._id : null
+            })
+        }
 
         res.json({ success: true, message: 'Appointment cancelled' })
     } catch (error) {

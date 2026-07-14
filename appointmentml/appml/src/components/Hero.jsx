@@ -1,9 +1,19 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { Scissors, Star, Shield } from 'lucide-react'
 
 export default function Hero() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  const handleBookingClick = () => {
+    if (!user) {
+      navigate('/login', { state: { from: '/booking' } })
+      return
+    }
+    navigate('/booking')
+  }
 
   return (
     <section className='min-h-screen flex items-center justify-center relative overflow-hidden pt-20'>
@@ -42,7 +52,7 @@ export default function Hero() {
           <motion.button
             whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(168,85,247,0.4)' }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/booking')}
+            onClick={handleBookingClick}
             className='bg-gradient-to-r from-purple-600 to-purple-500 text-white px-9 py-4 rounded-full font-bold text-lg shadow-lg shadow-purple-500/40 transition-all focus:outline-none focus:ring-4 focus:ring-purple-300'
           >
             Book Appointment Now

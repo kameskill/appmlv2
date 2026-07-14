@@ -30,7 +30,7 @@ const formatDate = (date, options) =>
 
 export default function Booking() {
     const navigate = useNavigate()
-    const { user } = useAuth()
+    const { user, loading } = useAuth()
     useAdminRedirect()
     const [step, setStep] = useState(1)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -47,6 +47,13 @@ export default function Booking() {
     const [slotsLoading, setSlotsLoading] = useState(false)
 
     useEffect(() => {
+        if (!loading && !user) {
+            toast.error('Please login first before booking an appointment')
+            navigate('/login', { state: { from: '/booking' }, replace: true })
+        }
+    }, [loading, user, navigate])
+
+    useEffect(() => {
         if (user) {
             setFormData(prev => ({
                 ...prev,
@@ -58,14 +65,15 @@ export default function Booking() {
     }, [user])
 
     useEffect(() => {
+        if (!user) return
         if (!formData.breed || formData.breed === 'Other') { setMlRecs([]); return }
         const season = getCurrentSeason()
         setMlLoading(true)
-        mlRecommendApi.recommend(formData.breed, season, 3)
+        mlRecommendApi.recommend(formData.breed, season, 3, 'philippines')
             .then(({ data }) => setMlRecs(data.recommendations || []))
             .catch(() => setMlRecs([]))
             .finally(() => setMlLoading(false))
-    }, [formData.breed])
+    }, [formData.breed, user])
 
     useEffect(() => {
         if (!formData.date) { setBookedSlots([]); return }
@@ -126,6 +134,14 @@ export default function Booking() {
     const servicePrice = parsePrice(selectedService?.price || '0')
     const mlPrice = parsePrice(selectedMLRec?.price || '0')
     const totalPrice = servicePrice + mlPrice
+
+    const weatherContext = getCurrentSeason() === 'summer'
+        ? 'Philippines dry season heat profile'
+        : 'Philippines rainy season humidity profile'
+
+    if (!loading && !user) {
+        return null
+    }
 
     if (isBooked) {
         return (
@@ -218,7 +234,7 @@ export default function Booking() {
                                             <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
                                                 <Sparkles size={18} className='text-amber-500 fill-amber-500' /> Add AI Styling Upgrade (Optional)
                                             </h4>
-                                            <p className='text-xs text-slate-500 mb-4'>Analyzed for {getCurrentSeason()} weather conditions.</p>
+                                            <p className='text-xs text-slate-500 mb-4'>Analyzed for {weatherContext}.</p>
 
                                             {mlLoading ? (
                                                 <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm'>Generating smart suggestions...</span></div>
@@ -233,7 +249,8 @@ export default function Booking() {
                                                                 <h5 className='font-bold text-slate-900 text-sm'>{rec.name}</h5>
                                                                 <span className='bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap'>{rec.match}</span>
                                                             </div>
-                                                            <p className='text-xs text-slate-500 mb-4 flex-grow leading-relaxed'>{rec.description}</p>
+                                                            <p className='text-xs text-slate-500 mb-3 flex-grow leading-relaxed'>{rec.description}</p>
+                                                            {rec.weather_reason && <p className='text-[11px] text-purple-600 mb-3 font-medium leading-relaxed'>{rec.weather_reason}</p>}
                                                             <div className='flex justify-between items-center text-xs mt-auto'>
                                                                 <span className='flex items-center gap-1 text-slate-400'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
                                                                 <span className='font-bold text-purple-600'>+{rec.price}</span>

@@ -89,8 +89,13 @@ export default function Admin() {
 
     useEffect(() => { if (user?.role === 'admin') loadAll() }, [user])
 
-    const handleStatusUpdate = async (id, newStatus, e) => {
+    const handleStatusUpdate = async (id, currentStatus, newStatus, e) => {
         e.stopPropagation();
+        if (currentStatus === newStatus) return
+        if (currentStatus === 'completed' || currentStatus === 'cancelled') {
+            toast.error(`Cannot change status because this booking is already ${currentStatus}`)
+            return
+        }
         setUpdatingId(id)
         try {
             await adminApi.updateStatus(id, newStatus)
@@ -185,6 +190,8 @@ export default function Admin() {
 
     const maxRevenue = analytics?.monthlyData?.length
         ? Math.max(...analytics.monthlyData.map(d => d.revenue), 1) : 1
+    const maxDailyRevenue = analytics?.dailyRevenue?.length
+        ? Math.max(...analytics.dailyRevenue.map((d) => d.revenue), 1) : 1
 
     return (
         <div className='flex h-screen bg-[#fafafa] font-sans overflow-hidden relative'>
@@ -259,7 +266,14 @@ export default function Admin() {
                                     <StatCard icon={Calendar} label="Today's Bookings" value={stats?.todayAppointments ?? 0} color='text-purple-600' bg='bg-purple-50' />
                                     <StatCard icon={DollarSign} label='Monthly Revenue' value={stats?.monthlyRevenue} color='text-emerald-500' bg='bg-emerald-50' />
                                     <StatCard icon={Users} label='Total Clients' value={stats?.totalCustomers ?? 0} color='text-blue-500' bg='bg-blue-50' />
-                                    <StatCard icon={CheckCircle} label='Confirmed' value={stats?.confirmedBookings ?? 0} change={`${stats?.pendingAppointments ?? 0} pending`} color='text-amber-500' bg='bg-amber-50' />
+                                    <StatCard
+                                        icon={TrendingUp}
+                                        label='Next Month Forecast'
+                                        value={analytics?.nextMonthPrediction ? `₱${analytics.nextMonthPrediction.predictedRevenue.toLocaleString()}` : '—'}
+                                        change={analytics?.nextMonthPrediction ? `${analytics.nextMonthPrediction.confidence}% confidence` : undefined}
+                                        color='text-fuchsia-500'
+                                        bg='bg-fuchsia-50'
+                                    />
                                 </div>
 
                                 <div className='grid lg:grid-cols-3 gap-8 items-start'>
@@ -281,6 +295,28 @@ export default function Admin() {
                                                     </div>
                                                 ))}
                                             </div>
+                                            {analytics?.dailyRevenue?.length > 0 && (
+                                                <div className='mt-8 pt-6 border-t border-purple-50'>
+                                                    <div className='flex items-center justify-between mb-4'>
+                                                        <h3 className='text-sm font-bold text-slate-700'>Daily Revenue (Last 7 Days)</h3>
+                                                        <span className='text-[10px] font-bold text-slate-400 uppercase tracking-wider'>Actual Daily Sales</span>
+                                                    </div>
+                                                    <div className='grid grid-cols-7 gap-3 items-end h-28'>
+                                                        {analytics.dailyRevenue.map((day, idx) => (
+                                                            <div key={idx} className='flex flex-col items-center justify-end gap-2'>
+                                                                <span className='text-[9px] text-slate-400 font-bold'>₱{(day.revenue / 1000).toFixed(1)}K</span>
+                                                                <motion.div
+                                                                    initial={{ height: 0 }}
+                                                                    animate={{ height: `${(day.revenue / maxDailyRevenue) * 72}px` }}
+                                                                    transition={{ delay: idx * 0.04, duration: 0.5 }}
+                                                                    className='w-full max-w-[20px] bg-gradient-to-t from-emerald-400 to-teal-400 rounded-t-md min-h-[4px]'
+                                                                />
+                                                                <span className='text-[10px] font-bold text-slate-400 uppercase'>{day.day}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -408,7 +444,10 @@ export default function Admin() {
                                                                                 <Loader2 className='animate-spin text-purple-500 mr-2' size={18} />
                                                                             ) : (
                                                                                 <div className='inline-block relative' onClick={e => e.stopPropagation()}>
-                                                                                    <select value={a.status} onChange={(e) => handleStatusUpdate(a._id, e.target.value, e)}
+                                                                                    <select
+                                                                                        value={a.status}
+                                                                                        disabled={a.status === 'completed' || a.status === 'cancelled'}
+                                                                                        onChange={(e) => handleStatusUpdate(a._id, a.status, e.target.value, e)}
                                                                                         className='appearance-none bg-white border border-purple-100 text-slate-600 py-1.5 pl-4 pr-9 rounded-xl text-xs font-bold cursor-pointer hover:border-purple-400 hover:ring-4 hover:ring-purple-50 focus:outline-none transition-all shadow-sm'>
                                                                                         {['pending', 'confirmed', 'completed', 'cancelled'].map(s => (
                                                                                             <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
@@ -540,15 +579,33 @@ export default function Admin() {
                                             <Activity size={14} /> AI Engine Active
                                         </div>
                                         <h2 className='text-3xl lg:text-4xl font-extrabold mb-4 tracking-tight'>Smart Trend Analysis</h2>
-                                        <p className='text-purple-50 max-w-xl text-sm leading-relaxed font-medium'>Machine learning predictions utilizing local climate data and historical booking patterns to forecast trending styles by breed.</p>
+                                        <p className='text-purple-50 max-w-xl text-sm leading-relaxed font-medium'>Machine learning predictions utilizing Philippines weather signals and historical booking patterns to forecast trending styles by breed.</p>
                                     </div>
                                 </div>
 
                                 <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
                                     {[
-                                        { color: 'text-amber-500', bg: 'bg-amber-50', title: 'Seasonal Matrix', body: 'Current Season: Dry/Hot', sub: 'Algorithm prioritizing short trims.' },
-                                        { color: 'text-fuchsia-500', bg: 'bg-fuchsia-50', title: 'Breed Insights', body: 'Dynamic Targeting', sub: 'Adapting to top-booked breeds.' },
-                                        { color: 'text-purple-500', bg: 'bg-purple-50', title: 'System Status', body: 'Model Synced', sub: 'Serving real-time suggestions.' }
+                                        {
+                                            color: 'text-amber-500',
+                                            bg: 'bg-amber-50',
+                                            title: 'Seasonal Matrix',
+                                            body: analytics?.weatherInsights?.seasonType ? `${analytics.weatherInsights.seasonType} Season` : 'Climate Synced',
+                                            sub: analytics?.weatherInsights?.guidance || 'Algorithm prioritizing weather-fit trims.'
+                                        },
+                                        {
+                                            color: 'text-fuchsia-500',
+                                            bg: 'bg-fuchsia-50',
+                                            title: 'Sales Predictor',
+                                            body: analytics?.nextMonthPrediction ? `₱${analytics.nextMonthPrediction.predictedRevenue.toLocaleString()} next month` : 'Forecast Loading',
+                                            sub: analytics?.nextMonthPrediction ? `${analytics.nextMonthPrediction.confidence}% confidence model` : 'Waiting for enough sales history.'
+                                        },
+                                        {
+                                            color: 'text-purple-500',
+                                            bg: 'bg-purple-50',
+                                            title: 'System Status',
+                                            body: 'Model Synced',
+                                            sub: 'Serving real-time suggestions.'
+                                        }
                                     ].map((card) => (
                                         <div key={card.title} className='bg-white rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-purple-50 flex flex-col'>
                                             <div className={`inline-flex self-start p-3 rounded-2xl ${card.bg} ${card.color} mb-4`}>
@@ -608,6 +665,20 @@ export default function Admin() {
                                         </div>
                                     )}
                                 </div>
+
+                                {analytics?.mlSuggestions?.length > 0 && (
+                                    <div className='bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-purple-50 p-6 md:p-8'>
+                                        <h3 className='text-lg font-bold text-slate-900 mb-5'>AI Suggestions</h3>
+                                        <div className='space-y-4'>
+                                            {analytics.mlSuggestions.map((suggestion, idx) => (
+                                                <div key={idx} className='rounded-2xl border border-purple-100 bg-purple-50/40 p-4'>
+                                                    <p className='text-xs font-bold uppercase tracking-wider text-purple-600 mb-1'>{suggestion.title}</p>
+                                                    <p className='text-sm text-slate-600 font-medium'>{suggestion.detail}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </motion.div>
                         )}
 

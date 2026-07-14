@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -109,6 +109,7 @@ export default function UserDashboard() {
     const [slotsLoading, setSlotsLoading] = useState(false)
 
     const seasonDisplay = useMemo(() => getCurrentSeasonDetails(), []);
+    const surfacedStatusNotificationIds = useRef(new Set())
 
     const normalizePhone = (value) => {
         const digits = String(value || '').replace(/\D/g, '')
@@ -157,11 +158,21 @@ export default function UserDashboard() {
     useEffect(() => {
         if (!formData.breed || formData.breed === 'Other') { setMlRecs([]); return }
         setMlLoading(true)
-        mlRecommendApi.recommend(formData.breed, getCurrentSeason(), 3)
+        mlRecommendApi.recommend(formData.breed, getCurrentSeason(), 3, 'philippines')
             .then(({ data }) => setMlRecs(data.recommendations || []))
             .catch(() => setMlRecs([]))
             .finally(() => setMlLoading(false))
     }, [formData.breed])
+
+    useEffect(() => {
+        notifications
+            .filter((notification) => notification.type === 'appointment-status' && !notification.isRead)
+            .forEach((notification) => {
+                if (surfacedStatusNotificationIds.current.has(notification._id)) return
+                surfacedStatusNotificationIds.current.add(notification._id)
+                toast(notification.title)
+            })
+    }, [notifications])
 
     useEffect(() => {
         if (!formData.date) { setBookedSlots([]); return }
@@ -539,7 +550,7 @@ export default function UserDashboard() {
                                                     <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
                                                         <Sparkles size={18} className='text-amber-500 fill-amber-500' /> Add AI Styling Upgrade (Optional)
                                                     </h4>
-                                                    <p className='text-xs text-slate-500 mb-5'>Analyzed for {getCurrentSeason()} weather conditions.</p>
+                                                    <p className='text-xs text-slate-500 mb-5'>Analyzed for Philippines {getCurrentSeason()} weather conditions.</p>
 
                                                     {mlLoading ? (
                                                         <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm font-bold'>Generating smart suggestions...</span></div>
@@ -553,7 +564,8 @@ export default function UserDashboard() {
                                                                         <h5 className='font-bold text-slate-900 text-sm leading-tight'>{rec.name}</h5>
                                                                         <span className='bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider whitespace-nowrap'>{rec.match}</span>
                                                                     </div>
-                                                                    <p className='text-xs text-slate-500 mb-4 flex-grow leading-relaxed'>{rec.description}</p>
+                                                                    <p className='text-xs text-slate-500 mb-3 flex-grow leading-relaxed'>{rec.description}</p>
+                                                                    {rec.weather_reason && <p className='text-[11px] text-purple-600 mb-3 font-medium leading-relaxed'>{rec.weather_reason}</p>}
                                                                     <div className='flex justify-between items-center text-xs mt-auto'>
                                                                         <span className='flex items-center gap-1 text-slate-400 font-medium'><TrendingUp size={12} className='text-purple-400' /> {rec.popularity}</span>
                                                                         <span className='font-bold text-purple-600'>+{rec.price}</span>
@@ -800,6 +812,11 @@ export default function UserDashboard() {
                                         <div className='flex justify-between items-start gap-4'>
                                             <div>
                                                 <h4 className={`text-sm font-bold ${!n.isRead ? 'text-purple-900' : 'text-slate-900'}`}>{n.title}</h4>
+                                                <div className='mt-2'>
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] uppercase tracking-wider font-bold ${n.type === 'appointment-status' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-purple-50 text-purple-700 border border-purple-200'}`}>
+                                                        {n.type === 'appointment-status' ? 'Service Update' : 'Broadcast'}
+                                                    </span>
+                                                </div>
                                                 <p className='text-xs text-slate-600 mt-1 leading-relaxed'>{n.message}</p>
                                                 <p className='text-[10px] uppercase tracking-wider font-black text-slate-400 mt-3'>{new Date(n.createdAt).toLocaleString('en-PH')}</p>
                                             </div>
