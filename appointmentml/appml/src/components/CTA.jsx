@@ -11,6 +11,7 @@ export default function CTA() {
       navigate('/login', { state: { from: '/booking' } })
       return
     }
+
     navigate('/booking')
   }
 
@@ -26,14 +27,17 @@ export default function CTA() {
         <h2 className='text-4xl md:text-5xl font-bold mb-4'>
           Ready to Pamper Your Pet?
         </h2>
+
         <p className='text-xl mb-8 text-purple-100'>
-          Book an appointment today and give your furry friend the premium grooming experience they deserve.
+          Book an appointment today and give your furry friend the premium
+          grooming experience they deserve.
         </p>
+
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleBookingClick}
-          className='bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/50'
+          className='cursor-pointer bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/50'
         >
           Book Appointment Now
         </motion.button>

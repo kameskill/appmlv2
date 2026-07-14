@@ -25,6 +25,52 @@ const formatDate = (dateStr) => {
     })
 }
 
+const formatPeso = (value) => {
+    const amount = Number(value)
+    return `₱${Number.isFinite(amount) ? amount.toLocaleString('en-PH') : '0'}`
+}
+
+const formatForecastPeso = (value) => {
+    const amount = Number(value)
+    return Number.isFinite(amount) ? formatPeso(amount) : 'Not available'
+}
+
+const formatForecastPercent = (value) => {
+    const amount = Number(value)
+    return Number.isFinite(amount) ? `${Math.round(amount)}%` : 'Not available'
+}
+
+const getForecastSummary = (prediction) => {
+    if (!prediction) return 'Waiting for enough sales history.'
+
+    const low = Number(prediction.rangeLow)
+    const high = Number(prediction.rangeHigh)
+    const confidence = Number(prediction.confidence)
+
+    if (Number.isFinite(low) && Number.isFinite(high)) {
+        const confidenceText =
+            prediction.confidenceLabel ||
+            `${Number.isFinite(confidence) ? confidence : 0}% confidence`
+
+        return `Likely range: ${formatPeso(low)} – ${formatPeso(high)} · ${confidenceText}`
+    }
+
+    return `${Number.isFinite(confidence) ? confidence : 0}% confidence model`
+}
+
+const formatEnglishMonth = (data) => {
+    if (Number.isInteger(data?.year) && Number.isInteger(data?.monthIndex)) {
+        return new Date(Date.UTC(data.year, data.monthIndex, 1))
+            .toLocaleDateString('en-US', {
+                month: 'short',
+                timeZone: 'UTC'
+            })
+            .toUpperCase()
+    }
+
+    return String(data?.month || '').toUpperCase()
+}
+
 const TABS = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'appointments', label: 'Bookings', icon: Calendar },
@@ -42,7 +88,13 @@ export default function Admin() {
     const [appointments, setAppointments] = useState([])
     const [analytics, setAnalytics] = useState(null)
     const [notifications, setNotifications] = useState([])
-    const [notificationForm, setNotificationForm] = useState({ title: '', message: '' })
+    const [users, setUsers] = useState([])
+    const [notificationForm, setNotificationForm] = useState({
+        title: '',
+        message: '',
+        audience: 'user',
+        targetUser: ''
+    })
     const [statusFilter, setStatusFilter] = useState('')
     const [updatingId, setUpdatingId] = useState(null)
     const [pendingDeleteId, setPendingDeleteId] = useState(null)
@@ -81,9 +133,22 @@ export default function Admin() {
         } catch (e) { toast.error(getErrorMessage(e)) }
     }
 
+    const fetchUsers = async () => {
+        try {
+            const { data } = await adminApi.getUsers()
+            setUsers(data.users || [])
+        } catch (e) { toast.error(getErrorMessage(e)) }
+    }
+
     const loadAll = async () => {
         setLoading(true)
-        await Promise.all([fetchStats(), fetchAppointments(), fetchAnalytics(), fetchNotifications()])
+        await Promise.all([
+            fetchStats(),
+            fetchAppointments(),
+            fetchAnalytics(),
+            fetchNotifications(),
+            fetchUsers()
+        ])
         setLoading(false)
     }
 
@@ -100,8 +165,11 @@ export default function Admin() {
         try {
             await adminApi.updateStatus(id, newStatus)
             toast.success(`Appointment marked as ${newStatus}`)
-            fetchAppointments()
-            fetchStats()
+            await Promise.all([
+                fetchAppointments(),
+                fetchStats(),
+                fetchAnalytics()
+            ])
         } catch (e) {
             toast.error(getErrorMessage(e))
         } finally {
@@ -119,8 +187,11 @@ export default function Admin() {
         try {
             await adminApi.deleteAppointment(pendingDeleteId)
             toast.success('Booking removed successfully')
-            fetchAppointments()
-            fetchStats()
+            await Promise.all([
+                fetchAppointments(),
+                fetchStats(),
+                fetchAnalytics()
+            ])
         } catch (e) {
             toast.error(getErrorMessage(e))
         } finally {
@@ -136,18 +207,43 @@ export default function Admin() {
 
     const handleCreateNotification = async (e) => {
         e.preventDefault()
+
         if (!notificationForm.title.trim() || !notificationForm.message.trim()) {
             toast.error('Title and message are required')
             return
         }
+
+        if (notificationForm.audience === 'user' && !notificationForm.targetUser) {
+            toast.error('Please select a recipient')
+            return
+        }
+
         try {
             await adminApi.createNotification({
                 title: notificationForm.title.trim(),
-                message: notificationForm.message.trim()
+                message: notificationForm.message.trim(),
+                audience: notificationForm.audience,
+                targetUser: notificationForm.audience === 'user'
+                    ? notificationForm.targetUser
+                    : null
             })
-            toast.success('Notification sent to all users')
-            setNotificationForm({ title: '', message: '' })
-            fetchNotifications()
+
+            const selectedUser = users.find((item) => item._id === notificationForm.targetUser)
+
+            toast.success(
+                notificationForm.audience === 'user'
+                    ? `Notification sent only to ${selectedUser?.firstName || 'the selected user'}`
+                    : 'Notification sent to all users'
+            )
+
+            setNotificationForm({
+                title: '',
+                message: '',
+                audience: 'user',
+                targetUser: ''
+            })
+
+            await fetchNotifications()
         } catch (e) {
             toast.error(getErrorMessage(e))
         }
@@ -194,7 +290,7 @@ export default function Admin() {
         ? Math.max(...analytics.dailyRevenue.map((d) => d.revenue), 1) : 1
 
     return (
-        <div className='flex h-screen bg-[#fafafa] font-sans overflow-hidden relative'>
+        <div className='flex h-screen bg-[#fafafa] font-sans overflow-hidden relative [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed'>
             {/* Subtle background decorative blobs */}
             <div className='absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-200/30 rounded-full blur-3xl pointer-events-none'></div>
             <div className='absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-fuchsia-200/20 rounded-full blur-3xl pointer-events-none'></div>
@@ -207,7 +303,7 @@ export default function Admin() {
                     </div>
                     <div>
                         <h1 className='text-xl font-extrabold text-slate-900 tracking-tight leading-tight'>Timmy Tails</h1>
-                        <p className='text-[10px] font-bold text-fuchsia-500 uppercase tracking-widest'>Admin Workspace</p>
+                        <p className='text-[10px] font-bold text-fuchsia-500 uppercase tracking-widest'>Admin Dashboard</p>
                     </div>
                 </div>
 
@@ -262,14 +358,15 @@ export default function Admin() {
                         {activeTab === 'overview' && (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className='space-y-8'>
                                 {/* Stat Cards */}
-                                <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6'>
+                                <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6'>
                                     <StatCard icon={Calendar} label="Today's Bookings" value={stats?.todayAppointments ?? 0} color='text-purple-600' bg='bg-purple-50' />
-                                    <StatCard icon={DollarSign} label='Monthly Revenue' value={stats?.monthlyRevenue} color='text-emerald-500' bg='bg-emerald-50' />
+                                    <StatCard icon={DollarSign} label="Today's Sales" value={formatPeso(stats?.todayRevenue)} color='text-emerald-500' bg='bg-emerald-50' />
+                                    <StatCard icon={DollarSign} label='Monthly Revenue' value={stats?.monthlyRevenue || formatPeso(stats?.monthlyRevenueValue)} color='text-teal-500' bg='bg-teal-50' />
                                     <StatCard icon={Users} label='Total Clients' value={stats?.totalCustomers ?? 0} color='text-blue-500' bg='bg-blue-50' />
                                     <StatCard
                                         icon={TrendingUp}
                                         label='Next Month Forecast'
-                                        value={analytics?.nextMonthPrediction ? `₱${analytics.nextMonthPrediction.predictedRevenue.toLocaleString()}` : '—'}
+                                        value={analytics?.nextMonthPrediction ? formatPeso(analytics.nextMonthPrediction.predictedRevenue) : '—'}
                                         change={analytics?.nextMonthPrediction ? `${analytics.nextMonthPrediction.confidence}% confidence` : undefined}
                                         color='text-fuchsia-500'
                                         bg='bg-fuchsia-50'
@@ -285,13 +382,13 @@ export default function Admin() {
                                                 {analytics.monthlyData.map((d, idx) => (
                                                     <div key={idx} className='flex-1 flex flex-col items-center gap-3 group'>
                                                         <span className='text-[10px] sm:text-xs text-slate-400 font-bold opacity-0 group-hover:opacity-100 transition-opacity'>
-                                                            ₱{(d.revenue / 1000).toFixed(1)}K
+                                                            {formatPeso(d.revenue)}
                                                         </span>
                                                         <div className='w-full relative flex justify-center'>
                                                             <motion.div initial={{ height: 0 }} animate={{ height: `${(d.revenue / maxRevenue) * 220}px` }} transition={{ delay: idx * 0.05, duration: 0.8, type: 'spring' }}
                                                                 className='w-full max-w-[48px] bg-gradient-to-t from-purple-500 to-fuchsia-400 rounded-t-xl min-h-[4px]' />
                                                         </div>
-                                                        <span className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide mt-2'>{d.month}</span>
+                                                        <span className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide mt-2'>{formatEnglishMonth(d)}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -303,8 +400,8 @@ export default function Admin() {
                                                     </div>
                                                     <div className='grid grid-cols-7 gap-3 items-end h-28'>
                                                         {analytics.dailyRevenue.map((day, idx) => (
-                                                            <div key={idx} className='flex flex-col items-center justify-end gap-2'>
-                                                                <span className='text-[9px] text-slate-400 font-bold'>₱{(day.revenue / 1000).toFixed(1)}K</span>
+                                                            <div key={day.date || idx} className='flex flex-col items-center justify-end gap-2'>
+                                                                <span className='text-[9px] text-slate-400 font-bold'>{formatPeso(day.revenue)}</span>
                                                                 <motion.div
                                                                     initial={{ height: 0 }}
                                                                     animate={{ height: `${(day.revenue / maxDailyRevenue) * 72}px` }}
@@ -556,7 +653,7 @@ export default function Admin() {
                                                                 <motion.div initial={{ height: 0 }} animate={{ height: `${(d.appointments / maxApts) * 180}px` }} transition={{ delay: idx * 0.05, duration: 0.8 }}
                                                                     className='w-full max-w-[36px] bg-gradient-to-t from-fuchsia-400 to-pink-400 rounded-t-xl min-h-[4px]' />
                                                             </div>
-                                                            <span className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide mt-2'>{d.month}</span>
+                                                            <span className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide mt-2'>{formatEnglishMonth(d)}</span>
                                                         </div>
                                                     )
                                                 })}
@@ -596,8 +693,10 @@ export default function Admin() {
                                             color: 'text-fuchsia-500',
                                             bg: 'bg-fuchsia-50',
                                             title: 'Sales Predictor',
-                                            body: analytics?.nextMonthPrediction ? `₱${analytics.nextMonthPrediction.predictedRevenue.toLocaleString()} next month` : 'Forecast Loading',
-                                            sub: analytics?.nextMonthPrediction ? `${analytics.nextMonthPrediction.confidence}% confidence model` : 'Waiting for enough sales history.'
+                                            body: Number.isFinite(Number(analytics?.nextMonthPrediction?.predictedRevenue))
+                                                ? `${formatPeso(analytics.nextMonthPrediction.predictedRevenue)} expected next month`
+                                                : 'Not enough sales data yet',
+                                            sub: getForecastSummary(analytics?.nextMonthPrediction)
                                         },
                                         {
                                             color: 'text-purple-500',
@@ -616,6 +715,138 @@ export default function Admin() {
                                             <p className='text-xs text-slate-400'>{card.sub}</p>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* Forecast calculation details */}
+                                <div className='bg-white rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-purple-50'>
+                                    <div className='flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6'>
+                                        <div>
+                                            <div className='inline-flex items-center gap-2 text-fuchsia-600 bg-fuchsia-50 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest mb-3'>
+                                                <BarChart3 size={14} /> Forecast Breakdown
+                                            </div>
+                                            <h3 className='text-xl font-bold text-slate-900'>How the predicted sales were calculated</h3>
+                                            <p className='text-sm text-slate-500 mt-2 max-w-3xl leading-relaxed'>
+                                                The forecast combines past sales behavior, the current month&apos;s sales pace,
+                                                confirmed appointments already booked for next month, and pending appointments
+                                                adjusted by your historical confirmation rate.
+                                            </p>
+                                        </div>
+
+                                        <div className='rounded-2xl bg-purple-50 border border-purple-100 px-4 py-3 shrink-0'>
+                                            <p className='text-[10px] font-bold uppercase tracking-widest text-purple-400'>Forecast Model</p>
+                                            <p className='text-sm font-bold text-purple-700 mt-1'>
+                                                {analytics?.nextMonthPrediction?.model || 'Sales forecasting model'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {analytics?.nextMonthPrediction ? (
+                                        <>
+                                            <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
+                                                {[
+                                                    {
+                                                        label: 'Historical Baseline',
+                                                        value: formatForecastPeso(analytics.nextMonthPrediction.historicalBaseline),
+                                                        detail: `Based on ${Number(analytics.nextMonthPrediction.historyMonths) || 0} completed month(s)`,
+                                                        icon: BarChart3,
+                                                        color: 'text-purple-600',
+                                                        bg: 'bg-purple-50'
+                                                    },
+                                                    {
+                                                        label: 'Current Month Pace',
+                                                        value: formatForecastPeso(analytics.nextMonthPrediction.currentMonthRunRate),
+                                                        detail: `Actual sales so far: ${formatForecastPeso(analytics.nextMonthPrediction.currentMonthRevenue)}`,
+                                                        icon: Activity,
+                                                        color: 'text-blue-600',
+                                                        bg: 'bg-blue-50'
+                                                    },
+                                                    {
+                                                        label: 'Confirmed Next Month',
+                                                        value: formatForecastPeso(analytics.nextMonthPrediction.committedRevenue),
+                                                        detail: 'Revenue already supported by confirmed bookings',
+                                                        icon: CheckCircle,
+                                                        color: 'text-emerald-600',
+                                                        bg: 'bg-emerald-50'
+                                                    },
+                                                    {
+                                                        label: 'Expected Pending Sales',
+                                                        value: formatForecastPeso(analytics.nextMonthPrediction.expectedPendingRevenue),
+                                                        detail: `${formatForecastPercent(analytics.nextMonthPrediction.confirmationRate)} historical confirmation rate`,
+                                                        icon: Clock,
+                                                        color: 'text-amber-600',
+                                                        bg: 'bg-amber-50'
+                                                    }
+                                                ].map((item) => (
+                                                    <div key={item.label} className='rounded-2xl border border-purple-50 bg-slate-50/50 p-5'>
+                                                        <div className={`w-10 h-10 rounded-xl ${item.bg} flex items-center justify-center mb-4`}>
+                                                            <item.icon size={18} className={item.color} />
+                                                        </div>
+                                                        <p className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>{item.label}</p>
+                                                        <p className='text-xl font-extrabold text-slate-900 mt-1'>{item.value}</p>
+                                                        <p className='text-xs text-slate-500 mt-2 leading-relaxed'>{item.detail}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4'>
+                                                <div className='lg:col-span-2 rounded-2xl border border-fuchsia-100 bg-gradient-to-r from-fuchsia-50 to-purple-50 p-5'>
+                                                    <p className='text-[10px] font-bold uppercase tracking-widest text-fuchsia-500'>Final Forecast</p>
+                                                    <div className='flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mt-2'>
+                                                        <div>
+                                                            <p className='text-3xl font-extrabold text-slate-900'>
+                                                                {formatForecastPeso(analytics.nextMonthPrediction.predictedRevenue)}
+                                                            </p>
+                                                            <p className='text-sm text-slate-500 mt-1'>
+                                                                Likely range: {formatForecastPeso(analytics.nextMonthPrediction.rangeLow)}
+                                                                {' – '}
+                                                                {formatForecastPeso(analytics.nextMonthPrediction.rangeHigh)}
+                                                            </p>
+                                                        </div>
+                                                        <div className='sm:text-right'>
+                                                            <p className='text-sm font-bold text-fuchsia-600'>
+                                                                {analytics.nextMonthPrediction.confidenceLabel ||
+                                                                    `${formatForecastPercent(analytics.nextMonthPrediction.confidence)} confidence`}
+                                                            </p>
+                                                            <p className='text-xs text-slate-400 mt-1 capitalize'>
+                                                                Trend: {analytics.nextMonthPrediction.signal || 'stable'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className='rounded-2xl border border-purple-100 bg-white p-5'>
+                                                    <p className='text-[10px] font-bold uppercase tracking-widest text-purple-400'>Model Check</p>
+                                                    <p className='text-sm font-bold text-slate-800 mt-3'>
+                                                        Backtest accuracy: {formatForecastPercent(analytics.nextMonthPrediction.backtestAccuracy)}
+                                                    </p>
+                                                    <p className='text-xs text-slate-500 mt-2 leading-relaxed'>
+                                                        Backtesting compares older predictions with the actual sales that followed.
+                                                        More completed months and bookings generally make this measure more dependable.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className='mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-5'>
+                                                <h4 className='text-sm font-bold text-slate-800 mb-3'>Calculation process</h4>
+                                                <div className='grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600'>
+                                                    <p><span className='font-bold text-purple-600'>1.</span> Reviews up to 12 completed months and gives newer months more influence.</p>
+                                                    <p><span className='font-bold text-purple-600'>2.</span> Detects the sales trend while reducing the effect of unusually high or low months.</p>
+                                                    <p><span className='font-bold text-purple-600'>3.</span> Blends the historical result with the current month&apos;s projected sales pace.</p>
+                                                    <p><span className='font-bold text-purple-600'>4.</span> Adds confirmed next-month revenue and probability-adjusted pending bookings.</p>
+                                                    <p><span className='font-bold text-purple-600'>5.</span> Uses sales variation and backtesting error to calculate the likely range and confidence.</p>
+                                                    <p><span className='font-bold text-purple-600'>6.</span> Keeps confirmed next-month revenue as the minimum supported forecast.</p>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className='rounded-2xl border border-dashed border-purple-200 bg-purple-50/40 p-8 text-center'>
+                                            <BarChart3 size={32} className='mx-auto text-purple-300 mb-3' />
+                                            <p className='text-sm font-bold text-slate-600'>Forecast details are not available yet.</p>
+                                            <p className='text-xs text-slate-400 mt-1'>
+                                                Add and confirm more bookings, then refresh the dashboard.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className='bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-purple-50 overflow-hidden'>
@@ -691,14 +922,54 @@ export default function Admin() {
                                         <div className='p-2 bg-fuchsia-50 rounded-lg'>
                                             <Send size={18} className='text-fuchsia-500' />
                                         </div>
-                                        Broadcast Alert
+                                        Send Notification
                                     </h3>
                                     <form onSubmit={handleCreateNotification} className='space-y-5'>
+                                        <div>
+                                            <label className='block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2'>Recipient Type</label>
+                                            <div className='grid grid-cols-2 gap-2 rounded-2xl bg-purple-50/60 p-1.5 border border-purple-100'>
+                                                <button
+                                                    type='button'
+                                                    onClick={() => setNotificationForm(prev => ({ ...prev, audience: 'user', targetUser: '' }))}
+                                                    className={`rounded-xl px-3 py-2.5 text-xs font-bold transition-all ${notificationForm.audience === 'user' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-purple-600'}`}
+                                                >
+                                                    Specific User
+                                                </button>
+                                                <button
+                                                    type='button'
+                                                    onClick={() => setNotificationForm(prev => ({ ...prev, audience: 'all-users', targetUser: '' }))}
+                                                    className={`rounded-xl px-3 py-2.5 text-xs font-bold transition-all ${notificationForm.audience === 'all-users' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-purple-600'}`}
+                                                >
+                                                    All Users
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {notificationForm.audience === 'user' && (
+                                            <div>
+                                                <label className='block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2'>Select User</label>
+                                                <select
+                                                    value={notificationForm.targetUser}
+                                                    onChange={(e) => setNotificationForm(prev => ({ ...prev, targetUser: e.target.value }))}
+                                                    className='w-full px-4 py-3.5 border border-purple-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-400 bg-purple-50/20 text-sm font-medium transition-all'
+                                                    required
+                                                >
+                                                    <option value=''>Choose a user...</option>
+                                                    {users.map((recipient) => (
+                                                        <option key={recipient._id} value={recipient._id}>
+                                                            {recipient.firstName} {recipient.lastName} — {recipient.email}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <p className='mt-2 text-[11px] text-slate-400'>Only the selected user will receive and see this notification.</p>
+                                            </div>
+                                        )}
+
                                         <div>
                                             <label className='block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2'>Alert Title</label>
                                             <input value={notificationForm.title} onChange={(e) => setNotificationForm(prev => ({ ...prev, title: e.target.value }))}
                                                 className='w-full px-4 py-3.5 border border-purple-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-purple-500/10 focus:border-purple-400 bg-purple-50/20 text-sm font-medium transition-all'
-                                                placeholder='e.g., Holiday Grooming Promo!' />
+                                                placeholder='e.g., Service completed' />
                                         </div>
                                         <div>
                                             <label className='block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2'>Message Body</label>
@@ -707,14 +978,14 @@ export default function Admin() {
                                                 placeholder='Write your announcement here...' />
                                         </div>
                                         <button type='submit' className='w-full bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white py-4 rounded-2xl font-bold hover:from-purple-600 hover:to-fuchsia-600 shadow-lg shadow-purple-500/25 transition-all flex items-center justify-center gap-2'>
-                                            Push to All Users
+                                            {notificationForm.audience === 'user' ? 'Send to Selected User' : 'Push to All Users'}
                                         </button>
                                     </form>
                                 </div>
 
                                 {/* History Log */}
                                 <div className='lg:col-span-3 bg-white rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-purple-50'>
-                                    <h3 className='text-lg font-bold text-slate-900 mb-6'>Broadcast History</h3>
+                                    <h3 className='text-lg font-bold text-slate-900 mb-6'>Notification History</h3>
                                     {notifications.length === 0 ? (
                                         <div className='py-20 text-center text-slate-400 flex flex-col items-center'>
                                             <div className='w-20 h-20 bg-purple-50 rounded-full flex items-center justify-center mb-4'>
@@ -735,6 +1006,18 @@ export default function Admin() {
                                                             <span className='text-[10px] font-bold text-purple-500 uppercase tracking-widest bg-purple-50 px-2.5 py-1 rounded-md'>
                                                                 {new Date(n.createdAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                             </span>
+                                                        </div>
+                                                        <div className='flex flex-wrap items-center gap-2 mb-2'>
+                                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md ${n.audience === 'user' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                                {n.audience === 'user'
+                                                                    ? `Only: ${n.targetUser ? `${n.targetUser.firstName} ${n.targetUser.lastName}` : 'Specific user'}`
+                                                                    : 'All users'}
+                                                            </span>
+                                                            {n.type === 'appointment-status' && (
+                                                                <span className='text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-purple-50 text-purple-600'>
+                                                                    Appointment status
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <p className='text-sm text-slate-500 leading-relaxed'>{n.message}</p>
                                                     </div>

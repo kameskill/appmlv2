@@ -24,6 +24,7 @@ import toast from 'react-hot-toast'
 import { appointmentsApi, notificationsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { formatTime } from '../utils/formatters'
+import { getPhilippineSeason } from '../utils/season'
 
 // --- Constants & Helpers ---
 
@@ -54,22 +55,6 @@ const ALL_SLOTS = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'
 const formatDate = (dateStr, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
     if (!dateStr) return ''
     return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-PH', options)
-}
-
-const getCurrentSeason = () => {
-    const m = new Date().getMonth() + 1
-    if (m >= 3 && m <= 5) return 'spring'
-    if (m >= 6 && m <= 8) return 'summer'
-    if (m >= 9 && m <= 11) return 'fall'
-    return 'winter'
-}
-
-const getCurrentSeasonDetails = () => {
-    const month = new Date().getMonth();
-    if (month >= 5 && month <= 10) {
-        return { name: 'Rainy Season', advice: 'Keep coats manageable to avoid mud matting and dampness.' };
-    }
-    return { name: 'Dry & Sunny Season', advice: 'Time for a lightweight, breathable trim to help them stay cool!' };
 }
 
 const getMinDate = () => new Date().toISOString().split('T')[0]
@@ -108,7 +93,7 @@ export default function UserDashboard() {
     const [bookedSlots, setBookedSlots] = useState([])
     const [slotsLoading, setSlotsLoading] = useState(false)
 
-    const seasonDisplay = useMemo(() => getCurrentSeasonDetails(), []);
+    const seasonDisplay = useMemo(() => getPhilippineSeason(), []);
     const surfacedStatusNotificationIds = useRef(new Set())
 
     const normalizePhone = (value) => {
@@ -158,11 +143,11 @@ export default function UserDashboard() {
     useEffect(() => {
         if (!formData.breed || formData.breed === 'Other') { setMlRecs([]); return }
         setMlLoading(true)
-        mlRecommendApi.recommend(formData.breed, getCurrentSeason(), 3, 'philippines')
+        mlRecommendApi.recommend(formData.breed, seasonDisplay.key, 3, 'philippines')
             .then(({ data }) => setMlRecs(data.recommendations || []))
             .catch(() => setMlRecs([]))
             .finally(() => setMlLoading(false))
-    }, [formData.breed])
+    }, [formData.breed, seasonDisplay.key])
 
     useEffect(() => {
         notifications
@@ -550,7 +535,7 @@ export default function UserDashboard() {
                                                     <h4 className='text-base font-bold text-slate-900 mb-1 flex items-center gap-2'>
                                                         <Sparkles size={18} className='text-amber-500 fill-amber-500' /> Add AI Styling Upgrade (Optional)
                                                     </h4>
-                                                    <p className='text-xs text-slate-500 mb-5'>Analyzed for Philippines {getCurrentSeason()} weather conditions.</p>
+                                                    <p className='text-xs text-slate-500 mb-5'>Analyzed for Philippines {seasonDisplay.name.toLowerCase()} conditions.</p>
 
                                                     {mlLoading ? (
                                                         <div className='flex items-center gap-3 py-4'><Loader2 className='animate-spin text-purple-600' size={18} /><span className='text-slate-500 text-sm font-bold'>Generating smart suggestions...</span></div>

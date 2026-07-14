@@ -13,6 +13,8 @@ import Signup from './pages/Signup'
 import Admin from './pages/Admin'
 import UserDashboard from './pages/UserDashboard'
 import ForgotPassword from './pages/ForgotPassword'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
 
 function App() {
   const [scrolled, setScrolled] = useState(false)
@@ -44,6 +46,8 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/dashboard" element={<UserDashboard />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path='/privacy-policy' element={<PrivacyPolicy />} />
+              <Route path='/terms-of-service' element={<TermsOfService />} />
             </Routes>
           </main>
         </div>

@@ -46,6 +46,10 @@ export const adminApi = {
     deleteAppointment: (id) => api.delete(`/admin/appointments/${id}`),
     getAnalytics: () => api.get('/admin/analytics'),
     getContacts: () => api.get('/admin/contacts'),
+
+    // Added for the specific-user notification dropdown
+    getUsers: () => api.get('/admin/users'),
+
     getNotifications: () => api.get('/admin/notifications'),
     createNotification: (data) => api.post('/admin/notifications', data)
 }

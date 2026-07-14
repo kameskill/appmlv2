@@ -15,6 +15,21 @@ const SERVICE_PRICES = {
     'De-shedding Treatment': 700
 }
 
+const HAIRCUT_PRICES = {
+    'Puppy Cut': 800,
+    'Teddy Bear Cut': 800,
+    'Feathered Trim': 1100,
+    'Lamb Cut': 800,
+    'Lion Cut': 1200,
+    'Summer Cut': 750,
+    'Sanitary Trim': 800,
+    'Show Cut': 1500,
+    'Bath & Brush Only': 600,
+    'De-shedding Treatment': 700
+}
+
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
+
 // @route   POST /api/appointments
 // @desc    Create a new appointment
 // @access  Private
@@ -24,12 +39,27 @@ router.post(
     [
         body('petName').notEmpty().trim().withMessage('Pet name is required'),
         body('breed').notEmpty().trim().withMessage('Breed is required'),
-        body('service').notEmpty().withMessage('Service is required'),
-        body('date').notEmpty().withMessage('Date is required'),
+        body('service')
+            .notEmpty()
+            .withMessage('Service is required')
+            .bail()
+            .custom((value) => hasOwn(SERVICE_PRICES, value))
+            .withMessage('Invalid service selected'),
+        body('haircutStyle')
+            .optional({ nullable: true })
+            .custom((value) => !value || hasOwn(HAIRCUT_PRICES, value))
+            .withMessage('Invalid haircut style selected'),
+        body('date')
+            .notEmpty()
+            .withMessage('Date is required')
+            .bail()
+            .matches(/^\d{4}-\d{2}-\d{2}$/)
+            .withMessage('Invalid date format'),
         body('time').notEmpty().withMessage('Time is required'),
         body('ownerName').notEmpty().trim().withMessage('Owner name is required'),
         body('ownerEmail').isEmail().normalizeEmail().withMessage('Valid owner email is required'),
-        body('ownerPhone').notEmpty().trim().withMessage('Owner phone is required')
+        body('ownerPhone').notEmpty().trim().withMessage('Owner phone is required'),
+        body('notes').optional().isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters')
     ],
     async (req, res) => {
         const errors = validationResult(req)
@@ -37,18 +67,36 @@ router.post(
             return res.status(400).json({ success: false, errors: errors.array() })
         }
 
-        const { petName, breed, haircutStyle, service, date, time, ownerName, ownerEmail, ownerPhone, notes } = req.body
+        const {
+            petName,
+            breed,
+            haircutStyle,
+            service,
+            date,
+            time,
+            ownerName,
+            ownerEmail,
+            ownerPhone,
+            notes
+        } = req.body
 
         try {
-            // Check if time slot is already booked for that date
             const existing = await Appointment.findOne({
                 date: String(date),
                 time: String(time),
                 status: { $in: ['pending', 'confirmed'] }
             })
+
             if (existing) {
-                return res.status(400).json({ success: false, message: 'This time slot is already booked. Please choose another time.' })
+                return res.status(400).json({
+                    success: false,
+                    message: 'This time slot is already booked. Please choose another time.'
+                })
             }
+
+            const basePrice = SERVICE_PRICES[service] || 0
+            const stylingPrice = haircutStyle ? HAIRCUT_PRICES[haircutStyle] || 0 : 0
+            const totalPrice = basePrice + stylingPrice
 
             const appointment = await Appointment.create({
                 user: req.user._id,
@@ -56,13 +104,13 @@ router.post(
                 breed,
                 haircutStyle: haircutStyle || null,
                 service,
-                date,
-                time,
+                date: String(date),
+                time: String(time),
                 ownerName,
                 ownerEmail,
                 ownerPhone,
                 notes: notes || '',
-                price: SERVICE_PRICES[service] || 0
+                price: totalPrice
             })
 
             res.status(201).json({
@@ -71,7 +119,7 @@ router.post(
                 appointment
             })
         } catch (error) {
-            console.error(error)
+            console.error('Create appointment error:', error)
             res.status(500).json({ success: false, message: 'Server error' })
         }
     }
@@ -82,9 +130,11 @@ router.post(
 // @access  Public
 router.get('/availability', async (req, res) => {
     const { date } = req.query
+
     if (!date) {
         return res.status(400).json({ success: false, message: 'Date query parameter is required' })
     }
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ success: false, message: 'Invalid date format' })
     }
@@ -97,10 +147,10 @@ router.get('/availability', async (req, res) => {
 
         res.json({
             success: true,
-            bookedTimes: bookedSlots.map(a => a.time)
+            bookedTimes: bookedSlots.map((appointment) => appointment.time)
         })
     } catch (error) {
-        console.error(error)
+        console.error('Get availability error:', error)
         res.status(500).json({ success: false, message: 'Server error' })
     }
 })
@@ -115,7 +165,7 @@ router.get('/my', protect, async (req, res) => {
 
         res.json({ success: true, appointments })
     } catch (error) {
-        console.error(error)
+        console.error('Get user appointments error:', error)
         res.status(500).json({ success: false, message: 'Server error' })
     }
 })
@@ -127,8 +177,10 @@ router.delete('/:id', protect, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) {
         return res.status(400).json({ success: false, message: 'Invalid appointment ID' })
     }
+
     try {
         const appointment = await Appointment.findById(req.params.id)
+
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' })
         }
@@ -139,14 +191,24 @@ router.delete('/:id', protect, async (req, res) => {
         if (!isOwner && !isAdmin) {
             return res.status(403).json({ success: false, message: 'Not authorized' })
         }
+
         if (appointment.status === 'completed') {
-            return res.status(400).json({ success: false, message: 'Completed appointments can no longer be cancelled' })
+            return res.status(400).json({
+                success: false,
+                message: 'Completed appointments can no longer be cancelled'
+            })
         }
+
         if (appointment.status === 'cancelled') {
-            return res.json({ success: true, message: 'Appointment already cancelled', appointment })
+            return res.json({
+                success: true,
+                message: 'Appointment already cancelled',
+                appointment
+            })
         }
 
         appointment.status = 'cancelled'
+        appointment.revenueRecordedAt = null
         await appointment.save()
 
         if (appointment.user) {
@@ -161,9 +223,9 @@ router.delete('/:id', protect, async (req, res) => {
             })
         }
 
-        res.json({ success: true, message: 'Appointment cancelled' })
+        res.json({ success: true, message: 'Appointment cancelled', appointment })
     } catch (error) {
-        console.error(error)
+        console.error('Cancel appointment error:', error)
         res.status(500).json({ success: false, message: 'Server error' })
     }
 })

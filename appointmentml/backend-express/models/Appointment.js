@@ -5,7 +5,7 @@ const appointmentSchema = new mongoose.Schema(
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
-            required: false // allow guest bookings
+            required: false
         },
         petName: {
             type: String,
@@ -72,15 +72,21 @@ const appointmentSchema = new mongoose.Schema(
         },
         price: {
             type: Number,
-            default: 0
+            default: 0,
+            min: [0, 'Price cannot be negative']
+        },
+        revenueRecordedAt: {
+            type: Date,
+            default: null,
+            index: true
         }
     },
     { timestamps: true }
 )
 
-// Index for faster queries
 appointmentSchema.index({ date: 1, time: 1 })
 appointmentSchema.index({ ownerEmail: 1 })
 appointmentSchema.index({ status: 1 })
+appointmentSchema.index({ revenueRecordedAt: 1 })
 
 module.exports = mongoose.model('Appointment', appointmentSchema)

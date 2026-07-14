@@ -27,11 +27,41 @@ const validateRequest = (req, res) => {
 
 const generateSixDigitOtp = () => `${Math.floor(100000 + Math.random() * 900000)}`
 const normalizePhone = (value) => {
-    const digits = String(value || '').replace(/\D/g, '')
-    if (!digits) return ''
-    if (digits.startsWith('63')) return `+${digits}`
-    if (digits.startsWith('0')) return `+63${digits.slice(1)}`
+    let digits = String(value || '')
+        .replace(/\D/g, '')
+
+    if (digits.startsWith('63')) {
+        digits = digits.slice(2)
+    }
+
+    if (digits.startsWith('0')) {
+        digits = digits.slice(1)
+    }
+
+    if (!/^9\d{9}$/.test(digits)) {
+        return ''
+    }
+
     return `+63${digits}`
+}
+
+const getPhoneCandidates = (value) => {
+    const normalizedPhone =
+        normalizePhone(value)
+
+    if (!normalizedPhone) {
+        return []
+    }
+
+    const localNumber =
+        normalizedPhone.slice(3)
+
+    return [
+        normalizedPhone,
+        `0${localNumber}`,
+        localNumber,
+        `63${localNumber}`
+    ]
 }
 
 // @route   POST /api/auth/register/send-otp
@@ -44,7 +74,7 @@ router.post(
         body('lastName').notEmpty().trim().withMessage('Last name is required'),
         body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
         body('phone').notEmpty().trim().withMessage('Phone is required'),
-        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+        body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
     ],
     async (req, res) => {
         if (!validateRequest(req, res)) return
@@ -167,42 +197,115 @@ router.post(
 router.post(
     '/password/send-otp',
     [
-        body('phone').notEmpty().trim().withMessage('Phone is required')
+        body('phone')
+            .notEmpty()
+            .trim()
+            .withMessage(
+                'Phone is required'
+            )
     ],
     async (req, res) => {
-        if (!validateRequest(req, res)) return
+        if (!validateRequest(req, res)) {
+            return
+        }
 
-        const { phone } = req.body
+        const normalizedPhone =
+            normalizePhone(req.body.phone)
+
+        if (!normalizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Enter a valid Philippine mobile number'
+            })
+        }
 
         try {
-            const user = await User.findOne({ phone: String(phone) })
+            const user =
+                await User.findOne({
+                    phone: {
+                        $in: getPhoneCandidates(
+                            req.body.phone
+                        )
+                    }
+                })
+
             if (!user) {
-                return res.status(404).json({ success: false, message: 'No account found with this mobile number' })
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        'No account found with this mobile number'
+                })
             }
 
-            const code = generateSixDigitOtp()
-            const otpHash = await bcrypt.hash(code, 10)
-            const expiresAt = new Date(Date.now() + OTP_TTL_MS)
+            const code =
+                generateSixDigitOtp()
+
+            const otpHash =
+                await bcrypt.hash(
+                    code,
+                    10
+                )
+
+            const expiresAt =
+                new Date(
+                    Date.now() +
+                    OTP_TTL_MS
+                )
 
             await OtpRequest.findOneAndUpdate(
-                { purpose: 'reset_password', phone: String(phone) },
                 {
-                    purpose: 'reset_password',
-                    phone: String(phone),
-                    email: user.email,
+                    purpose:
+                        'reset_password',
+                    phone:
+                        normalizedPhone
+                },
+                {
+                    purpose:
+                        'reset_password',
+
+                    phone:
+                        normalizedPhone,
+
+                    email:
+                        user.email,
+
                     otpHash,
                     expiresAt,
-                    payload: { userId: user._id.toString() }
+
+                    payload: {
+                        userId:
+                            user._id.toString()
+                    }
                 },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                {
+                    upsert: true,
+                    new: true,
+                    setDefaultsOnInsert: true
+                }
             )
 
-            await sendOtp({ phone: String(phone), code, purpose: 'reset_password' })
+            await sendOtp({
+                phone:
+                    normalizedPhone,
+                code,
+                purpose:
+                    'reset_password'
+            })
 
-            res.json({ success: true, message: 'OTP sent to your mobile number' })
+            res.json({
+                success: true,
+                message:
+                    'OTP sent to your mobile number'
+            })
         } catch (error) {
             console.error(error)
-            res.status(500).json({ success: false, message: 'Failed to send OTP' })
+
+            res.status(500).json({
+                success: false,
+                message:
+                    'Failed to send OTP'
+            })
         }
     }
 )
@@ -213,44 +316,129 @@ router.post(
 router.post(
     '/password/reset',
     [
-        body('phone').notEmpty().trim().withMessage('Phone is required'),
-        body('otp').isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits'),
-        body('newPassword').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+        body('phone')
+            .notEmpty()
+            .trim()
+            .withMessage(
+                'Phone is required'
+            ),
+
+        body('otp')
+            .isLength({
+                min: 6,
+                max: 6
+            })
+            .withMessage(
+                'OTP must be 6 digits'
+            ),
+
+        body('newPassword')
+            .isLength({
+                min: 8
+            })
+            .withMessage(
+                'Password must be at least 8 characters'
+            )
     ],
     async (req, res) => {
-        if (!validateRequest(req, res)) return
+        if (!validateRequest(req, res)) {
+            return
+        }
 
-        const { phone, otp, newPassword } = req.body
+        const {
+            otp,
+            newPassword
+        } = req.body
+
+        const normalizedPhone =
+            normalizePhone(req.body.phone)
+
+        if (!normalizedPhone) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Enter a valid Philippine mobile number'
+            })
+        }
 
         try {
-            const otpRequest = await OtpRequest.findOne({
-                purpose: 'reset_password',
-                phone: String(phone)
+            const otpRequest =
+                await OtpRequest.findOne({
+                    purpose:
+                        'reset_password',
+
+                    phone:
+                        normalizedPhone
+                })
+
+            if (
+                !otpRequest ||
+                otpRequest.expiresAt.getTime() <
+                Date.now()
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        'OTP expired or not found. Please request a new one.'
+                })
+            }
+
+            const isMatch =
+                await bcrypt.compare(
+                    String(otp),
+                    otpRequest.otpHash
+                )
+
+            if (!isMatch) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid OTP'
+                })
+            }
+
+            const user =
+                await User.findById(
+                    otpRequest.payload
+                        ?.userId
+                ).select('+password')
+
+            if (!user) {
+                await OtpRequest.deleteOne({
+                    _id: otpRequest._id
+                })
+
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        'Account not found'
+                })
+            }
+
+            user.password =
+                String(newPassword)
+
+            // Standardize old stored numbers.
+            user.phone =
+                normalizedPhone
+
+            await user.save()
+
+            await OtpRequest.deleteOne({
+                _id: otpRequest._id
             })
 
-            if (!otpRequest || otpRequest.expiresAt.getTime() < Date.now()) {
-                return res.status(400).json({ success: false, message: 'OTP expired or not found. Please request a new one.' })
-            }
-
-            const isMatch = await bcrypt.compare(String(otp), otpRequest.otpHash)
-            if (!isMatch) {
-                return res.status(400).json({ success: false, message: 'Invalid OTP' })
-            }
-
-            const user = await User.findOne({ _id: otpRequest.payload?.userId, phone: String(phone) }).select('+password')
-            if (!user) {
-                await OtpRequest.deleteOne({ _id: otpRequest._id })
-                return res.status(404).json({ success: false, message: 'Account not found' })
-            }
-
-            user.password = String(newPassword)
-            await user.save()
-            await OtpRequest.deleteOne({ _id: otpRequest._id })
-
-            res.json({ success: true, message: 'Password updated successfully' })
+            res.json({
+                success: true,
+                message:
+                    'Password updated successfully'
+            })
         } catch (error) {
             console.error(error)
-            res.status(500).json({ success: false, message: 'Server error' })
+
+            res.status(500).json({
+                success: false,
+                message: 'Server error'
+            })
         }
     }
 )

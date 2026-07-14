@@ -1,198 +1,439 @@
 """
 Timmy Tails – ML Microservice
-Provides breed + season aware dog haircut recommendations using
-a content-based scoring model built with scikit-learn.
+
+Provides dog haircut recommendations based on:
+- Dog breed characteristics
+- Coat type and coat length
+- Dog size
+- Shedding level
+- Philippine rainy and dry seasons
 """
 
 import os
+import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
 load_dotenv()
 
-# ── Import local dataset ──────────────────────────────────────────────────────
-import sys
+# Allow Python to import the local data package.
 sys.path.insert(0, os.path.dirname(__file__))
+
 from data.breed_data import BREED_DATA, HAIRCUT_CATALOG
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", "http://localhost:3000", "https://timmytails.vercel.app", os.getenv("FRONTEND_URL", "")])
 
-# ── Feature encoding ──────────────────────────────────────────────────────────
-COAT_TYPES   = ["single", "double", "curly", "silky", "wire"]
-SIZES        = ["small", "medium", "large"]
-SHEDDINGS    = ["low", "medium", "high"]
-SENSITIVITIES = ["low", "medium", "high"]
+# Allowed frontend origins
+allowed_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://timmytails.vercel.app"
+]
+
+frontend_url = os.getenv("FRONTEND_URL")
+
+if frontend_url:
+    allowed_origins.append(frontend_url)
+
+CORS(app, origins=allowed_origins)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Philippine weather profiles
+# ─────────────────────────────────────────────────────────────────────────────
 
 COUNTRY_WEATHER_PROFILES = {
     "philippines": {
-        "spring": {"season_label": "Dry Transition", "humidity": 0.68, "heat_index": 0.70, "rainfall": 0.35},
-        "summer": {"season_label": "Hot Dry Season", "humidity": 0.63, "heat_index": 0.85, "rainfall": 0.25},
-        "fall": {"season_label": "Rainy Season", "humidity": 0.82, "heat_index": 0.74, "rainfall": 0.83},
-        "winter": {"season_label": "Amihan Cool-Dry", "humidity": 0.67, "heat_index": 0.55, "rainfall": 0.30}
+        "dry": {
+            "season_label": "Dry Season",
+            "humidity": 0.63,
+            "heat_index": 0.85,
+            "rainfall": 0.25
+        },
+        "rainy": {
+            "season_label": "Rainy Season",
+            "humidity": 0.82,
+            "heat_index": 0.74,
+            "rainfall": 0.83
+        }
     }
 }
 
-def _encode_breed(breed_info: dict) -> list[float]:
-    """Convert breed characteristics to a numeric feature vector."""
-    coat = COAT_TYPES.index(breed_info.get("coat_type", "single")) / len(COAT_TYPES)
-    size = SIZES.index(breed_info.get("size", "medium")) / len(SIZES)
-    shed = SHEDDINGS.index(breed_info.get("shedding", "medium")) / len(SHEDDINGS)
-    sens = SENSITIVITIES.index(breed_info.get("season_sensitivity", "medium")) / len(SENSITIVITIES)
-    water = 1.0 if breed_info.get("waterproof", False) else 0.0
-    length_map = {"short": 0.0, "medium": 0.5, "long": 1.0}
-    length = length_map.get(breed_info.get("coat_length", "medium"), 0.5)
-    return [coat, size, shed, sens, water, length]
-
 
 def _get_current_season() -> str:
-    month = datetime.now().month
-    if month in (3, 4, 5):
-        return "spring"
-    if month in (6, 7, 8):
-        return "summer"
-    if month in (9, 10, 11):
-        return "fall"
-    return "winter"
+    """
+    Return the current Philippine season.
+
+    Rainy season: June to November
+    Dry season: December to May
+    """
+    philippines_now = datetime.now(ZoneInfo("Asia/Manila"))
+    month = philippines_now.month
+
+    if 6 <= month <= 11:
+        return "rainy"
+
+    return "dry"
 
 
-def _get_weather_context(country: str, season: str) -> dict:
-    profile = COUNTRY_WEATHER_PROFILES.get(country.lower(), COUNTRY_WEATHER_PROFILES["philippines"])
-    return profile.get(season, profile[_get_current_season()])
+def _get_weather_context(
+    country: str = "philippines",
+    season: str | None = None
+) -> dict:
+    """
+    Return the weather profile for the selected country and season.
+    """
+    normalized_country = str(country or "philippines").strip().lower()
+
+    country_profile = COUNTRY_WEATHER_PROFILES.get(
+        normalized_country,
+        COUNTRY_WEATHER_PROFILES["philippines"]
+    )
+
+    selected_season = season or _get_current_season()
+
+    return country_profile.get(
+        selected_season,
+        country_profile[_get_current_season()]
+    )
 
 
-def _score_haircut(haircut: dict, breed_info: dict, season: str, weather_context: dict) -> float:
-    """Compute a recommendation score 0-1 for a haircut given breed + season."""
-    score = haircut["base_score"]
+# ─────────────────────────────────────────────────────────────────────────────
+# Recommendation scoring
+# ─────────────────────────────────────────────────────────────────────────────
 
-    # Season boost / penalty
-    if season in haircut.get("best_seasons", []):
-        score += 0.10
-    if season in haircut.get("avoid_seasons", []):
-        score -= 0.20
+def _score_haircut(
+    haircut: dict,
+    breed_info: dict,
+    season: str,
+    weather_context: dict
+) -> float:
+    """
+    Compute a ranking score for a haircut.
 
-    # Coat type compatibility
-    if breed_info.get("coat_type") in haircut.get("suitable_coat", []):
+    A higher score means the haircut is more appropriate for:
+    - The dog's coat
+    - The dog's size
+    - Shedding level
+    - Philippine weather conditions
+    """
+
+    score = float(haircut.get("base_score", 0.5))
+
+    haircut_name = haircut.get("name", "")
+    coat_type = breed_info.get("coat_type", "single")
+    size = breed_info.get("size", "medium")
+    shedding = breed_info.get("shedding", "medium")
+
+    suitable_coats = haircut.get("suitable_coat", [])
+    suitable_sizes = haircut.get("suitable_size", [])
+
+    # Coat compatibility
+    if coat_type in suitable_coats:
         score += 0.08
     else:
         score -= 0.12
 
     # Size compatibility
-    if breed_info.get("size") in haircut.get("suitable_size", []):
+    if size in suitable_sizes:
         score += 0.05
     else:
         score -= 0.08
 
-    # Shedding relevance
-    if breed_info.get("shedding") == "high" and haircut["name"] == "De-shedding Treatment":
+    # High-shedding breeds benefit from de-shedding.
+    if shedding == "high" and haircut_name == "De-shedding Treatment":
         score += 0.15
 
-    # Summer cut relevance for heat-sensitive / double-coated breeds
-    if season == "summer" and breed_info.get("shedding") == "high" and haircut["name"] == "Summer Cut":
-        score += 0.10
-
-    # Philippines climate adaptation (humidity, rainfall, heat index)
     humidity = weather_context.get("humidity", 0.5)
     rainfall = weather_context.get("rainfall", 0.5)
     heat_index = weather_context.get("heat_index", 0.5)
 
-    if humidity > 0.75 and haircut["name"] in {"Summer Cut", "Sanitary Trim"}:
-        score += 0.08
-    if rainfall > 0.7 and haircut["name"] in {"Feathered Trim", "Show Cut"}:
-        score -= 0.10
-    if heat_index > 0.75 and haircut["name"] in {"Summer Cut", "De-shedding Treatment"}:
-        score += 0.07
+    # ── Rainy-season recommendations ──────────────────────────────────────
+    if season == "rainy":
+        rainy_boosts = {
+            "De-shedding Treatment": 0.20,
+            "Sanitary Trim": 0.18,
+            "Bath & Brush Only": 0.14,
+            "Puppy Cut": 0.05
+        }
 
-    # Clamp to [0, 1]
-    return min(1.0, max(0.0, round(score, 4)))
+        rainy_penalties = {
+            "Summer Cut": 0.35,
+            "Feathered Trim": 0.15,
+            "Show Cut": 0.15,
+            "Lion Cut": 0.10
+        }
+
+        score += rainy_boosts.get(haircut_name, 0)
+        score -= rainy_penalties.get(haircut_name, 0)
+
+        # Humid weather favors easy-to-maintain styles.
+        if humidity >= 0.75:
+            if haircut_name == "Sanitary Trim":
+                score += 0.10
+            elif haircut_name == "Bath & Brush Only":
+                score += 0.08
+            elif haircut_name == "De-shedding Treatment":
+                score += 0.05
+
+        # Long decorative styles are harder to maintain in heavy rain.
+        if rainfall >= 0.70 and haircut_name in {
+            "Feathered Trim",
+            "Show Cut"
+        }:
+            score -= 0.10
+
+    # ── Dry-season recommendations ────────────────────────────────────────
+    elif season == "dry":
+        dry_boosts = {
+            "Summer Cut": 0.18,
+            "De-shedding Treatment": 0.12,
+            "Sanitary Trim": 0.06,
+            "Bath & Brush Only": 0.05
+        }
+
+        dry_penalties = {
+            "Lamb Cut": 0.12,
+            "Teddy Bear Cut": 0.05
+        }
+
+        score += dry_boosts.get(haircut_name, 0)
+        score -= dry_penalties.get(haircut_name, 0)
+
+        if heat_index >= 0.75:
+            if haircut_name == "Summer Cut":
+                score += 0.10
+            elif haircut_name == "De-shedding Treatment":
+                score += 0.07
+
+    return round(score, 4)
 
 
-def _build_weather_reason(haircut_name: str, weather_context: dict, season: str) -> str:
-    season_label = weather_context.get("season_label", season.capitalize())
-    humidity = weather_context.get("humidity", 0.5)
-    heat_index = weather_context.get("heat_index", 0.5)
-    if haircut_name in {"Summer Cut", "Sanitary Trim"} and humidity >= 0.75:
-        return f"Recommended for humid {season_label.lower()} days to reduce matting and improve comfort."
-    if haircut_name in {"De-shedding Treatment"} and heat_index >= 0.75:
-        return f"Supports cooling during high heat index periods in the {season_label.lower()}."
-    return f"Balanced fit for {season_label.lower()} weather in the Philippines."
+def _build_weather_reason(
+    haircut_name: str,
+    weather_context: dict,
+    season: str
+) -> str:
+    """
+    Create a readable explanation for the recommendation.
+    """
+
+    season_label = weather_context.get(
+        "season_label",
+        season.title()
+    )
+
+    if season == "rainy":
+        rainy_reasons = {
+            "De-shedding Treatment":
+                "Helps control loose undercoat and supports coat care during humid rainy-season conditions.",
+
+            "Sanitary Trim":
+                "Recommended during the rainy season to reduce mud buildup, matting, and dampness around sensitive areas.",
+
+            "Bath & Brush Only":
+                "Helps clean and maintain the coat during humid and rainy weather without removing too much protective fur.",
+
+            "Puppy Cut":
+                "Provides a manageable coat length that is easier to clean and dry during the rainy season."
+        }
+
+        return rainy_reasons.get(
+            haircut_name,
+            f"Suitable for maintaining your dog's coat during the Philippine {season_label.lower()}."
+        )
+
+    dry_reasons = {
+        "Summer Cut":
+            "Recommended during hot, dry weather to provide a shorter and easier-to-maintain coat.",
+
+        "De-shedding Treatment":
+            "Helps remove loose undercoat and supports cooling during high heat-index conditions.",
+
+        "Sanitary Trim":
+            "Provides practical hygiene and coat maintenance during warm weather.",
+
+        "Bath & Brush Only":
+            "Helps maintain a clean and healthy coat during the Philippine dry season."
+    }
+
+    return dry_reasons.get(
+        haircut_name,
+        f"Balanced grooming option for the Philippine {season_label.lower()}."
+    )
 
 
-def _get_recommendations(breed: str, season: str, top_n: int = 3, country: str = "philippines") -> list[dict]:
-    """Return top-N ranked haircuts for the given breed and season."""
-    breed_info = BREED_DATA.get(breed, BREED_DATA["Other"])
-    weather_context = _get_weather_context(country, season)
+def _get_recommendations(
+    breed: str,
+    season: str,
+    top_n: int = 3,
+    country: str = "philippines"
+) -> list[dict]:
+    """
+    Return ranked haircut recommendations.
+    """
 
-    scored = []
+    breed_info = BREED_DATA.get(
+        breed,
+        BREED_DATA["Other"]
+    )
+
+    weather_context = _get_weather_context(
+        country,
+        season
+    )
+
+    scored_recommendations = []
+
     for haircut in HAIRCUT_CATALOG:
-        s = _score_haircut(haircut, breed_info, season, weather_context)
-        scored.append({
+        ranking_score = _score_haircut(
+            haircut,
+            breed_info,
+            season,
+            weather_context
+        )
+
+        # Display percentage is limited to 99%.
+        display_match = max(
+            1,
+            min(99, round(ranking_score * 100))
+        )
+
+        display_popularity = max(
+            1,
+            min(97, display_match - 2)
+        )
+
+        scored_recommendations.append({
             "name": haircut["name"],
             "description": haircut["description"],
             "price": haircut["price"],
-            "season": season.capitalize(),
-            "match": f"{min(99, int(s * 100))}%",
-            "popularity": f"{min(99, int(s * 100 - 3))}%",
-            "weather_reason": _build_weather_reason(haircut["name"], weather_context, season),
-            "_score": s
+            "season": weather_context.get(
+                "season_label",
+                season.title()
+            ),
+            "match": f"{display_match}%",
+            "popularity": f"{display_popularity}%",
+            "weather_reason": _build_weather_reason(
+                haircut["name"],
+                weather_context,
+                season
+            ),
+            "_ranking_score": ranking_score
         })
 
-    scored.sort(key=lambda x: x["_score"], reverse=True)
+    # Sort using the full score before percentages are capped.
+    scored_recommendations.sort(
+        key=lambda recommendation: recommendation["_ranking_score"],
+        reverse=True
+    )
+
     results = []
-    for item in scored[:top_n]:
-        item.pop("_score")
-        results.append(item)
+
+    for recommendation in scored_recommendations[:top_n]:
+        recommendation.pop("_ranking_score", None)
+        results.append(recommendation)
+
     return results
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Routes
+# ─────────────────────────────────────────────────────────────────────────────
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"success": True, "message": "ML service is running", "timestamp": datetime.now(timezone.utc).isoformat()})
+    return jsonify({
+        "success": True,
+        "message": "ML service is running",
+        "current_season": _get_current_season(),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
 
 
 @app.route("/recommend", methods=["GET", "POST"])
 def recommend():
     """
-    GET  /recommend?breed=Poodle&season=spring
-    POST /recommend  { "breed": "Poodle", "season": "spring", "top_n": 3 }
-    Returns ranked haircut recommendations.
+    Examples:
+
+    GET:
+    /recommend?breed=Golden%20Retriever&season=rainy&top_n=3
+
+    POST:
+    {
+        "breed": "Golden Retriever",
+        "season": "rainy",
+        "top_n": 3,
+        "country": "philippines"
+    }
     """
+
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
     else:
         data = request.args
 
-    breed   = data.get("breed", "Other").strip()
-    season  = data.get("season", _get_current_season()).strip().lower()
-    country = data.get("country", "philippines").strip().lower() or "philippines"
-    top_n   = int(data.get("top_n", 3))
+    breed = str(data.get("breed", "Other")).strip()
 
-    valid_seasons = {"spring", "summer", "fall", "winter"}
-    if season not in valid_seasons:
-        season = _get_current_season()
+    requested_season = str(
+        data.get("season", _get_current_season())
+    ).strip().lower()
 
-    # Normalise breed name (case-insensitive fallback)
+    country = str(
+        data.get("country", "philippines")
+    ).strip().lower() or "philippines"
+
+    try:
+        top_n = int(data.get("top_n", 3))
+    except (TypeError, ValueError):
+        top_n = 3
+
+    top_n = max(1, min(top_n, 10))
+
+    valid_seasons = {
+        "rainy",
+        "dry"
+    }
+
+    if requested_season not in valid_seasons:
+        requested_season = _get_current_season()
+
+    # Match breed names without case sensitivity.
     if breed not in BREED_DATA:
-        for known in BREED_DATA:
-            if known.lower() == breed.lower():
-                breed = known
-                break
-        else:
-            breed = "Other"
+        matched_breed = next(
+            (
+                known_breed
+                for known_breed in BREED_DATA
+                if known_breed.lower() == breed.lower()
+            ),
+            "Other"
+        )
 
-    weather_context = _get_weather_context(country, season)
-    recommendations = _get_recommendations(breed, season, top_n, country)
+        breed = matched_breed
+
+    weather_context = _get_weather_context(
+        country,
+        requested_season
+    )
+
+    recommendations = _get_recommendations(
+        breed,
+        requested_season,
+        top_n,
+        country
+    )
 
     return jsonify({
         "success": True,
         "breed": breed,
         "country": country.title(),
-        "season": season.capitalize(),
-        "current_season": _get_current_season().capitalize(),
+        "season": weather_context["season_label"],
+        "season_key": requested_season,
+        "current_season": _get_current_season(),
         "weather_context": weather_context,
         "recommendations": recommendations
     })
@@ -200,18 +441,36 @@ def recommend():
 
 @app.route("/breeds", methods=["GET"])
 def list_breeds():
-    """Return all supported breed names."""
-    return jsonify({"success": True, "breeds": sorted(BREED_DATA.keys())})
+    return jsonify({
+        "success": True,
+        "breeds": sorted(BREED_DATA.keys())
+    })
 
 
 @app.route("/season", methods=["GET"])
 def current_season():
-    """Return the current season."""
-    return jsonify({"success": True, "season": _get_current_season().capitalize()})
+    season_key = _get_current_season()
+    weather_context = _get_weather_context(
+        "philippines",
+        season_key
+    )
+
+    return jsonify({
+        "success": True,
+        "season": weather_context["season_label"],
+        "season_key": season_key
+    })
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5001))
     debug = os.getenv("FLASK_DEBUG", "0") == "1"
-    print(f"🐾 Timmy Tails ML Service running on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=debug)
+
+    print(f"Timmy Tails ML Service running on port {port}")
+    print(f"Current Philippine season: {_get_current_season()}")
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=debug
+    )

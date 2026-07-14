@@ -7,6 +7,7 @@ import { appointmentsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import { useAdminRedirect } from '../utils/useAdminRedirect'
 import { formatTime } from '../utils/formatters'
+import { getPhilippineSeason } from '../utils/season'
 
 const SERVICES = [
     { id: 1, name: 'Full Grooming Package', description: 'Complete grooming with bath, haircut, nail trim, and ear cleaning', duration: '120 min', price: '₱1,200' },
@@ -46,6 +47,8 @@ export default function Booking() {
     const [bookedSlots, setBookedSlots] = useState([])
     const [slotsLoading, setSlotsLoading] = useState(false)
 
+    const currentSeason = getPhilippineSeason()
+
     useEffect(() => {
         if (!loading && !user) {
             toast.error('Please login first before booking an appointment')
@@ -67,13 +70,12 @@ export default function Booking() {
     useEffect(() => {
         if (!user) return
         if (!formData.breed || formData.breed === 'Other') { setMlRecs([]); return }
-        const season = getCurrentSeason()
         setMlLoading(true)
-        mlRecommendApi.recommend(formData.breed, season, 3, 'philippines')
+        mlRecommendApi.recommend(formData.breed, currentSeason.key, 3, 'philippines')
             .then(({ data }) => setMlRecs(data.recommendations || []))
             .catch(() => setMlRecs([]))
             .finally(() => setMlLoading(false))
-    }, [formData.breed, user])
+    }, [formData.breed, user, currentSeason.key])
 
     useEffect(() => {
         if (!formData.date) { setBookedSlots([]); return }
@@ -83,14 +85,6 @@ export default function Booking() {
             .catch(() => setBookedSlots([]))
             .finally(() => setSlotsLoading(false))
     }, [formData.date])
-
-    const getCurrentSeason = () => {
-        const m = new Date().getMonth() + 1
-        if (m >= 3 && m <= 5) return 'spring'
-        if (m >= 6 && m <= 8) return 'summer'
-        if (m >= 9 && m <= 11) return 'fall'
-        return 'winter'
-    }
 
     const getMinDate = () => new Date().toISOString().split('T')[0]
 
@@ -135,9 +129,7 @@ export default function Booking() {
     const mlPrice = parsePrice(selectedMLRec?.price || '0')
     const totalPrice = servicePrice + mlPrice
 
-    const weatherContext = getCurrentSeason() === 'summer'
-        ? 'Philippines dry season heat profile'
-        : 'Philippines rainy season humidity profile'
+    const weatherContext = `Philippines ${currentSeason.name.toLowerCase()} conditions`
 
     if (!loading && !user) {
         return null
