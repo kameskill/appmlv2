@@ -10,7 +10,12 @@ const USER_NOTIFICATION_LIMIT = 50
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const notifications = await Notification.find({ audience: 'all-users' })
+        const notifications = await Notification.find({
+            $or: [
+                { audience: 'all-users' },
+                { audience: 'user', targetUser: req.user._id }
+            ]
+        })
             .sort({ createdAt: -1 })
             .limit(USER_NOTIFICATION_LIMIT)
 
@@ -20,6 +25,8 @@ router.get('/', protect, async (req, res) => {
             title: n.title,
             message: n.message,
             audience: n.audience,
+            type: n.type || 'broadcast',
+            appointment: n.appointment || null,
             createdAt: n.createdAt,
             updatedAt: n.updatedAt,
             isRead: n.readBy.some((id) => id.toString() === userId)

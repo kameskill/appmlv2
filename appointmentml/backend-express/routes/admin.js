@@ -7,6 +7,29 @@ const User = require('../models/User')
 const Notification = require('../models/Notification')
 const { protect, adminOnly } = require('../middleware/auth')
 
+const TERMINAL_STATUSES = ['completed', 'cancelled']
+const REVENUE_STATUSES = ['confirmed', 'completed']
+
+const buildStatusNotification = (appointment, status) => {
+    const statusLabels = {
+        pending: 'Pending Review',
+        confirmed: 'Confirmed',
+        completed: 'Completed',
+        cancelled: 'Cancelled'
+    }
+    const title = `Service ${statusLabels[status] || status}`
+    const messageMap = {
+        pending: `Your booking for ${appointment.service} is now pending review.`,
+        confirmed: `Great news! Your ${appointment.service} booking on ${appointment.date} at ${appointment.time} is confirmed.`,
+        completed: `Your ${appointment.service} service on ${appointment.date} is marked as completed. Thank you for trusting Timmy Tails!`,
+        cancelled: `Your ${appointment.service} booking on ${appointment.date} at ${appointment.time} has been cancelled.`
+    }
+    return {
+        title,
+        message: messageMap[status] || `Your booking status has been updated to ${status}.`
+    }
+}
+
 // All admin routes require auth + admin role
 router.use(protect, adminOnly)
 
@@ -34,10 +57,10 @@ router.get('/stats', async (req, res) => {
             Appointment.countDocuments({ status: 'pending' }),
             Appointment.find({
                 date: { $gte: firstOfMonth, $lte: lastOfMonth },
-                status: { $in: ['confirmed', 'completed'] }
+                status: { $in: REVENUE_STATUSES }
             }),
             Appointment.aggregate([
-                { $match: { status: { $in: ['confirmed', 'completed'] } } },
+                { $match: { status: { $in: REVENUE_STATUSES } } },
                 { $group: { _id: null, total: { $sum: '$price' } } }
             ])
         ])
@@ -120,14 +143,37 @@ router.patch('/appointments/:id/status', async (req, res) => {
     }
 
     try {
-        const appointment = await Appointment.findByIdAndUpdate(
-            req.params.id,
-            { status: String(status) },
-            { new: true }
-        )
+        const appointment = await Appointment.findById(req.params.id)
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' })
         }
+
+        if (appointment.status === status) {
+            return res.json({ success: true, appointment })
+        }
+
+        if (TERMINAL_STATUSES.includes(appointment.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot change status because this booking is already ${appointment.status}`
+            })
+        }
+
+        appointment.status = String(status)
+        await appointment.save()
+
+        if (appointment.user) {
+            const statusNotification = buildStatusNotification(appointment, status)
+            await Notification.create({
+                ...statusNotification,
+                audience: 'user',
+                targetUser: appointment.user,
+                type: 'appointment-status',
+                appointment: appointment._id,
+                createdBy: req.user._id
+            })
+        }
+
         res.json({ success: true, appointment })
     } catch (error) {
         console.error(error)
@@ -178,15 +224,46 @@ router.get('/analytics', async (req, res) => {
                 const last = new Date(year, month + 1, 0).toISOString().split('T')[0]
                 const appointments = await Appointment.find({
                     date: { $gte: first, $lte: last },
-                    status: { $in: ['confirmed', 'completed'] }
+                    status: { $in: REVENUE_STATUSES }
                 })
                 return {
                     month: label,
+                    monthIndex: month,
+                    year,
                     revenue: appointments.reduce((s, a) => s + a.price, 0),
                     appointments: appointments.length
                 }
             })
         )
+
+        const dailyRevenueWindow = []
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date()
+            d.setDate(d.getDate() - i)
+            dailyRevenueWindow.push(d.toISOString().split('T')[0])
+        }
+        const dailyRevenueRaw = await Appointment.aggregate([
+            {
+                $match: {
+                    date: { $gte: dailyRevenueWindow[0], $lte: dailyRevenueWindow[dailyRevenueWindow.length - 1] },
+                    status: { $in: REVENUE_STATUSES }
+                }
+            },
+            { $group: { _id: '$date', revenue: { $sum: '$price' }, bookings: { $sum: 1 } } }
+        ])
+        const dailyRevenueMap = dailyRevenueRaw.reduce((acc, item) => {
+            acc[item._id] = { revenue: item.revenue, bookings: item.bookings }
+            return acc
+        }, {})
+        const dailyRevenue = dailyRevenueWindow.map((iso) => {
+            const metrics = dailyRevenueMap[iso] || { revenue: 0, bookings: 0 }
+            return {
+                date: iso,
+                day: new Date(`${iso}T12:00:00`).toLocaleDateString('en-PH', { weekday: 'short' }),
+                revenue: metrics.revenue,
+                bookings: metrics.bookings
+            }
+        })
 
         // Service distribution
         const serviceAgg = await Appointment.aggregate([
@@ -216,9 +293,65 @@ router.get('/analytics', async (req, res) => {
             trend: Math.min(99, 70 + b.count)
         }))
 
+        const recentMonths = monthlyData.slice(-3)
+        const monthGrowth = recentMonths.length > 1
+            ? recentMonths.slice(1).map((item, idx) => item.revenue - recentMonths[idx].revenue)
+            : []
+        const avgGrowth = monthGrowth.length
+            ? monthGrowth.reduce((sum, value) => sum + value, 0) / monthGrowth.length
+            : 0
+        const lastMonthRevenue = monthlyData[monthlyData.length - 1]?.revenue || 0
+        const predictedRevenue = Math.max(0, Math.round(lastMonthRevenue + avgGrowth))
+        const nextMonthDate = new Date()
+        nextMonthDate.setMonth(nextMonthDate.getMonth() + 1)
+        const nextMonthPrediction = {
+            month: nextMonthDate.toLocaleString('default', { month: 'short' }),
+            predictedRevenue,
+            growthDelta: Math.round(avgGrowth),
+            confidence: Math.max(55, Math.min(92, 70 + monthGrowth.length * 8)),
+            signal: avgGrowth >= 0 ? 'uptrend' : 'cooldown'
+        }
+
+        const currentMonth = new Date().getMonth()
+        const isPhilippinesRainySeason = currentMonth >= 5 && currentMonth <= 10
+        const weatherInsights = {
+            region: 'Philippines',
+            seasonType: isPhilippinesRainySeason ? 'Rainy' : 'Dry',
+            guidance: isPhilippinesRainySeason
+                ? 'Prioritize easy-maintenance trims and anti-matting services for humid and rainy days.'
+                : 'Promote lightweight cooling styles and de-shedding services for warm, dry conditions.'
+        }
+
+        const mlSuggestions = [
+            {
+                title: 'Weather-aligned Campaign',
+                detail: isPhilippinesRainySeason
+                    ? 'Promote shorter maintenance trims this rainy season to reduce matting.'
+                    : 'Highlight cooling cuts and hydration add-ons for dry season comfort.'
+            },
+            {
+                title: 'Next Month Sales Target',
+                detail: `Projected revenue for ${nextMonthPrediction.month} is ₱${nextMonthPrediction.predictedRevenue.toLocaleString()}.`
+            },
+            {
+                title: 'Top Breed Opportunity',
+                detail: trendingData[0]
+                    ? `${trendingData[0].breed} owners are leaning toward ${trendingData[0].haircut}; consider a featured bundle.`
+                    : 'Collect more confirmed appointments to unlock stronger breed-level insights.'
+            }
+        ]
+
         res.json({
             success: true,
-            analytics: { monthlyData, serviceDistribution, trendingData }
+            analytics: {
+                monthlyData,
+                dailyRevenue,
+                nextMonthPrediction,
+                weatherInsights,
+                mlSuggestions,
+                serviceDistribution,
+                trendingData
+            }
         })
     } catch (error) {
         console.error(error)
@@ -274,6 +407,7 @@ router.post('/notifications', async (req, res) => {
             title: String(title).trim(),
             message: String(message).trim(),
             audience: 'all-users',
+            type: 'broadcast',
             createdBy: req.user._id
         })
 

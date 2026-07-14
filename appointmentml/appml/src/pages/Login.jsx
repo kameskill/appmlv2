@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Scissors } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
@@ -8,19 +8,22 @@ import { getErrorMessage } from '../utils/api'
 
 export default function Login() {
     const navigate = useNavigate()
+    const location = useLocation()
     const { login, user } = useAuth()
     const [showPassword, setShowPassword] = useState(false)
     const [formData, setFormData] = useState({ email: '', password: '' })
     const [errors, setErrors] = useState({})
     const [isLoading, setIsLoading] = useState(false)
 
+    const intendedPath = location.state?.from === '/booking' ? '/booking' : '/dashboard'
+
     useEffect(() => {
         if (user?.role === 'admin') {
             navigate('/admin', { replace: true })
         } else if (user?.role === 'user') {
-            navigate('/dashboard', { replace: true })
+            navigate(intendedPath, { replace: true })
         }
-    }, [user, navigate])
+    }, [user, navigate, intendedPath])
 
     const handleInputChange = (e) => {
         const { name, value } = e.target
@@ -53,7 +56,7 @@ export default function Login() {
             if (data.user.role === 'admin') {
                 navigate('/admin')
             } else {
-                navigate('/dashboard')
+                navigate(intendedPath)
             }
         } catch (error) {
             toast.error(getErrorMessage(error))

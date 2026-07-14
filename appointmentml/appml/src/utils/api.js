@@ -58,8 +58,8 @@ export const notificationsApi = {
 
 // ── ML Service ────────────────────────────────────────────────────────────────
 export const mlRecommendApi = {
-    recommend: (breed, season, topN = 3) =>
-        mlApi.get('/recommend', { params: { breed, season, top_n: topN } }),
+    recommend: (breed, season, topN = 3, country = 'philippines') =>
+        mlApi.get('/recommend', { params: { breed, season, top_n: topN, country } }),
     getCurrentSeason: () => mlApi.get('/season'),
     getBreeds: () => mlApi.get('/breeds')
 }
