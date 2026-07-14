@@ -46,7 +46,6 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
             </Routes>
           </main>
-          <Footer />
         </div>
       </Router>
     </>

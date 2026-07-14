@@ -5,6 +5,7 @@ import Hero from '../components/Hero'
 import Features from '../components/Features'
 import Services from '../components/Services'
 import CTA from '../components/CTA'
+import Footer from '../components/Footer'
 
 export default function Home() {
     const navigate = useNavigate()
@@ -23,6 +24,7 @@ export default function Home() {
             <Features />
             <Services />
             <CTA />
+            <Footer />
         </>
     )
 }

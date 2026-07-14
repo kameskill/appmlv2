@@ -71,67 +71,86 @@ export default function ForgotPassword() {
         }
     }
 
+    const inputClass = 'w-full pl-11 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-100 transition-all'
+
     return (
         <div className='min-h-screen bg-gradient-to-br from-white via-purple-50 to-white flex items-center justify-center px-4 pt-20'>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className='w-full max-w-md'>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className='w-full max-w-md'>
                 <div className='bg-white rounded-2xl shadow-2xl border border-gray-100 p-8'>
                     <h1 className='text-3xl font-bold text-gray-900 mb-2'>Reset Password</h1>
                     <p className='text-gray-600 mb-6'>Use mobile OTP to change your password</p>
 
                     <form onSubmit={handleReset} className='space-y-4'>
                         <div>
-                            <label className='block text-gray-700 font-bold mb-2'>Mobile Number</label>
+                            <label htmlFor='phone' className='block text-gray-700 font-bold mb-2'>Mobile Number</label>
                             <div className='relative'>
                                 <Smartphone className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400' size={18} />
-                                <input name='phone' value={formData.phone} onChange={handleChange} placeholder='(+63) 999 999 9999'
-                                    className='w-full pl-11 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                <input id='phone' name='phone' value={formData.phone} onChange={handleChange} placeholder='(+63) 999 999 9999'
+                                    className={inputClass} />
                             </div>
                         </div>
 
                         {otpSent && (
                             <>
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>OTP</label>
+                                    <label htmlFor='otp' className='block text-gray-700 font-bold mb-2'>OTP</label>
                                     <div className='relative'>
                                         <ShieldCheck className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400' size={18} />
-                                        <input name='otp' value={formData.otp} onChange={handleChange} maxLength={6} placeholder='6-digit OTP'
-                                            className='w-full pl-11 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                        <input id='otp' name='otp' value={formData.otp} onChange={handleChange} maxLength={6} placeholder='6-digit OTP'
+                                            className={inputClass} />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className='block text-gray-700 font-bold mb-2'>New Password</label>
+                                    <label htmlFor='newPassword' className='block text-gray-700 font-bold mb-2'>New Password</label>
                                     <div className='relative'>
                                         <Lock className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400' size={18} />
-                                        <input type='password' name='newPassword' value={formData.newPassword} onChange={handleChange}
+                                        <input id='newPassword' type='password' name='newPassword' value={formData.newPassword} onChange={handleChange}
                                             placeholder='Minimum 6 characters'
-                                            className='w-full pl-11 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-600' />
+                                            className={inputClass} />
                                     </div>
                                 </div>
                             </>
                         )}
 
                         {!otpSent ? (
-                            <button type='button' onClick={handleSendOtp} disabled={isLoading}
-                                className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-50'>
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                type='button'
+                                onClick={handleSendOtp}
+                                disabled={isLoading}
+                                className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-50 hover:shadow-lg hover:shadow-purple-500/50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'
+                            >
                                 {isLoading ? 'Sending OTP...' : 'Send OTP'}
-                            </button>
+                            </motion.button>
                         ) : (
                             <div className='flex gap-3'>
-                                <button type='button' onClick={handleSendOtp} disabled={isLoading}
-                                    className='flex-1 border-2 border-purple-300 text-purple-700 py-3 rounded-lg font-bold hover:bg-purple-50'>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type='button'
+                                    onClick={handleSendOtp}
+                                    disabled={isLoading}
+                                    className='flex-1 border-2 border-purple-300 text-purple-700 py-3 rounded-lg font-bold hover:bg-purple-50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-100'
+                                >
                                     Resend OTP
-                                </button>
-                                <button type='submit' disabled={isLoading}
-                                    className='flex-1 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-50'>
+                                </motion.button>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type='submit'
+                                    disabled={isLoading}
+                                    className='flex-1 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold disabled:opacity-50 hover:shadow-lg hover:shadow-purple-500/50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'
+                                >
                                     {isLoading ? 'Updating...' : 'Update Password'}
-                                </button>
+                                </motion.button>
                             </div>
                         )}
                     </form>
 
                     <p className='text-center text-gray-600 mt-6'>
-                        Back to <Link to='/login' className='text-purple-600 font-bold'>Login</Link>
+                        Back to <Link to='/login' className='text-purple-600 font-bold focus:outline-none focus:underline'>Login</Link>
                     </p>
                 </div>
             </motion.div>

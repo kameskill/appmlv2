@@ -43,7 +43,7 @@ export default function Hero() {
             whileHover={{ scale: 1.05, boxShadow: '0 20px 40px rgba(168,85,247,0.4)' }}
             whileTap={{ scale: 0.95 }}
             onClick={() => navigate('/booking')}
-            className='bg-gradient-to-r from-purple-600 to-purple-500 text-white px-9 py-4 rounded-full font-bold text-lg shadow-lg shadow-purple-500/40 transition-all'
+            className='bg-gradient-to-r from-purple-600 to-purple-500 text-white px-9 py-4 rounded-full font-bold text-lg shadow-lg shadow-purple-500/40 transition-all focus:outline-none focus:ring-4 focus:ring-purple-300'
           >
             Book Appointment Now
           </motion.button>
@@ -51,7 +51,7 @@ export default function Hero() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => navigate('/services')}
-            className='border-2 border-purple-600 text-purple-600 px-9 py-4 rounded-full font-bold text-lg hover:bg-purple-50 transition-all'
+            className='border-2 border-purple-600 text-purple-600 px-9 py-4 rounded-full font-bold text-lg hover:bg-purple-50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-100'
           >
             View Services
           </motion.button>

@@ -10,6 +10,7 @@ export default function Services() {
       icon: Sparkles,
       title: 'Full Grooming',
       price: '₱1,200',
+      duration: '3-4 hours',
       description: 'Complete grooming package including bath, haircut, nail trim, and ear cleaning. Perfect for dogs needing full maintenance.',
       details: ['Professional bath', 'Custom haircut', 'Nail trimming', 'Ear cleaning', 'Paw pad trimming']
     },
@@ -17,6 +18,7 @@ export default function Services() {
       icon: Bath,
       title: 'Bath & Brush',
       price: '₱600',
+      duration: '1.5-2 hours',
       description: 'Gentle bath with premium products followed by professional brushing. Ideal for maintaining coat health.',
       details: ['Warm water bath', 'Premium shampoo', 'Conditioning treatment', 'Professional brushing', 'Drying service']
     },
@@ -24,6 +26,7 @@ export default function Services() {
       icon: Scissors,
       title: 'Haircut Special',
       price: '₱800',
+      duration: '2-3 hours',
       description: 'Trending styles with AI-powered recommendations based on your dog\'s breed and season.',
       details: ['AI-recommended style', 'Breed-specific cuts', 'Seasonal styling', 'Professional grooming', 'Style consultation']
     },
@@ -31,6 +34,7 @@ export default function Services() {
       icon: Clock,
       title: 'Quick Trim',
       price: '₱400',
+      duration: '30-45 minutes',
       description: 'Fast maintenance service for nails, paws, and sanitary trimming.',
       details: ['Nail trimming', 'Paw pad care', 'Sanitary trim', 'Quick touch-up', 'Express service']
     },
@@ -74,6 +78,7 @@ export default function Services() {
                     <h3 className='text-2xl font-bold text-gray-900'>
                       {service.title}
                     </h3>
+                    <p className='text-sm text-gray-500'>Duration: {service.duration}</p>
                   </div>
                 </div>
 
@@ -90,19 +95,21 @@ export default function Services() {
                   <ul className='space-y-2'>
                     {service.details.map((detail, idx) => (
                       <li key={idx} className='flex items-center gap-2 text-gray-600'>
-                        <div className='w-2 h-2 rounded-full bg-purple-500'></div>
+                        <div className='w-2 h-2 rounded-full bg-purple-500 flex-shrink-0'></div>
                         {detail}
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => navigate('/booking')}
-                  className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all'
+                  className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'
                 >
                   Book Now
-                </button>
+                </motion.button>
               </motion.div>
             )
           })}

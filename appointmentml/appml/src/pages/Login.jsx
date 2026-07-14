@@ -1,20 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, Scissors } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { getErrorMessage } from '../utils/api'
-import { useEffect } from 'react'
 
 export default function Login() {
     const navigate = useNavigate()
-    const { login } = useAuth()
+    const { login, user } = useAuth()
     const [showPassword, setShowPassword] = useState(false)
     const [formData, setFormData] = useState({ email: '', password: '' })
     const [errors, setErrors] = useState({})
     const [isLoading, setIsLoading] = useState(false)
-    const { user } = useAuth()
 
     useEffect(() => {
         if (user?.role === 'admin') {
@@ -87,16 +85,17 @@ export default function Login() {
                     <form onSubmit={handleSubmit} className='space-y-6'>
                         {/* Email */}
                         <div>
-                            <label className='block text-gray-700 font-bold mb-2'>Email Address</label>
+                            <label htmlFor='email' className='block text-gray-700 font-bold mb-2'>Email Address</label>
                             <div className='relative'>
                                 <Mail className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400' size={20} />
                                 <input
+                                    id='email'
                                     type='email'
                                     name='email'
                                     value={formData.email}
                                     onChange={handleInputChange}
                                     placeholder='your@email.com'
-                                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-lg focus:outline-none transition-all ${errors.email ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-purple-600'}`}
+                                    className={`w-full pl-12 pr-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-4 transition-all ${errors.email ? 'border-red-500 bg-red-50 focus:ring-red-100' : 'border-gray-300 focus:border-purple-600 focus:ring-purple-100'}`}
                                 />
                             </div>
                             {errors.email && <p className='text-red-500 text-sm mt-1'>{errors.email}</p>}
@@ -104,18 +103,24 @@ export default function Login() {
 
                         {/* Password */}
                         <div>
-                            <label className='block text-gray-700 font-bold mb-2'>Password</label>
+                            <label htmlFor='password' className='block text-gray-700 font-bold mb-2'>Password</label>
                             <div className='relative'>
                                 <Lock className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400' size={20} />
                                 <input
+                                    id='password'
                                     type={showPassword ? 'text' : 'password'}
                                     name='password'
                                     value={formData.password}
                                     onChange={handleInputChange}
                                     placeholder='Enter your password'
-                                    className={`w-full pl-12 pr-12 py-3 border-2 rounded-lg focus:outline-none transition-all ${errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-purple-600'}`}
+                                    className={`w-full pl-12 pr-12 py-3 border-2 rounded-lg focus:outline-none focus:ring-4 transition-all ${errors.password ? 'border-red-500 bg-red-50 focus:ring-red-100' : 'border-gray-300 focus:border-purple-600 focus:ring-purple-100'}`}
                                 />
-                                <button type='button' onClick={() => setShowPassword(!showPassword)} className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600'>
+                                <button
+                                    type='button'
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                    className='absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none focus:text-purple-600'
+                                >
                                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                 </button>
                             </div>
@@ -125,10 +130,10 @@ export default function Login() {
                         {/* Remember / Forgot */}
                         <div className='flex items-center justify-between'>
                             <label className='flex items-center gap-2 cursor-pointer'>
-                                <input type='checkbox' className='w-4 h-4 rounded border-gray-300' />
+                                <input type='checkbox' className='w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-400' />
                                 <span className='text-gray-600 text-sm'>Remember me</span>
                             </label>
-                            <Link to='/forgot-password' className='text-purple-600 hover:text-purple-700 text-sm font-semibold'>Forgot password?</Link>
+                            <Link to='/forgot-password' className='text-purple-600 hover:text-purple-700 text-sm font-semibold focus:outline-none focus:underline'>Forgot password?</Link>
                         </div>
 
                         <motion.button
@@ -136,7 +141,7 @@ export default function Login() {
                             whileTap={{ scale: 0.98 }}
                             type='submit'
                             disabled={isLoading}
-                            className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+                            className='w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 rounded-lg font-bold hover:shadow-lg hover:shadow-purple-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-4 focus:ring-purple-200'
                         >
                             {isLoading ? (
                                 <span className='flex items-center justify-center gap-2'>
@@ -152,7 +157,7 @@ export default function Login() {
 
                     <p className='text-center text-gray-600 mt-8'>
                         Don't have an account?{' '}
-                        <Link to='/signup' className='text-purple-600 hover:text-purple-700 font-bold'>Sign up here</Link>
+                        <Link to='/signup' className='text-purple-600 hover:text-purple-700 font-bold focus:outline-none focus:underline'>Sign up here</Link>
                     </p>
                 </div>
             </motion.div>

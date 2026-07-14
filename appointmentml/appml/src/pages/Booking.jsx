@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp, Plus } from 'lucide-react'
+import { ArrowLeft, Clock, Sparkles, Loader2, CheckCircle2, CalendarCheck, TrendingUp, Plus, Calendar } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { appointmentsApi, mlRecommendApi, getErrorMessage } from '../utils/api'
@@ -166,7 +166,7 @@ export default function Booking() {
 
                 <div className='mb-8'>
                     <div className='flex items-center gap-4 mb-8'>
-                        <button onClick={() => navigate('/dashboard')} className='p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500'>
+                        <button onClick={() => navigate('/dashboard')} aria-label='Back to dashboard' className='p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-300'>
                             <ArrowLeft size={20} />
                         </button>
                         <h2 className='text-2xl font-extrabold text-slate-900'>Book an Appointment</h2>
@@ -278,13 +278,13 @@ export default function Booking() {
                             <AnimatePresence>
                                 {(formData.service || formData.haircutStyle) && (
                                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                                        className='bg-slate-900 text-white p-5 rounded-2xl mb-6 shadow-lg border border-slate-800 flex justify-between items-center'>
+                                        className='bg-gradient-to-r from-purple-600 to-purple-500 text-white p-5 rounded-2xl mb-6 shadow-lg shadow-purple-200 flex justify-between items-center'>
                                         <div>
-                                            <p className='text-xs font-bold text-slate-400 uppercase tracking-wider mb-1'>Estimated Total</p>
+                                            <p className='text-xs font-bold text-purple-100 uppercase tracking-wider mb-1'>Estimated Total</p>
                                             <div className='flex items-center gap-2 flex-wrap text-sm'>
                                                 {selectedService && <span className='font-semibold'>{selectedService.name}</span>}
-                                                {selectedService && formData.haircutStyle && <Plus size={14} className='text-purple-400' />}
-                                                {formData.haircutStyle && <span className='text-purple-300 font-medium'>{formData.haircutStyle} Styling</span>}
+                                                {selectedService && formData.haircutStyle && <Plus size={14} className='text-purple-200' />}
+                                                {formData.haircutStyle && <span className='text-purple-100 font-medium'>{formData.haircutStyle} Styling</span>}
                                             </div>
                                         </div>
                                         <div className='text-right shrink-0 ml-4'>
@@ -296,7 +296,7 @@ export default function Booking() {
 
                             {/* Continue Button requires AT LEAST one selection */}
                             <button onClick={() => setStep(2)} disabled={!formData.petName || !formData.breed || (!formData.service && !formData.haircutStyle)}
-                                className='w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 shadow-md shadow-purple-200 transition-all'>
+                                className='w-full bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-700 shadow-md shadow-purple-200 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'>
                                 Continue to Date & Time
                             </button>
                         </motion.div>
@@ -306,6 +306,38 @@ export default function Booking() {
                     {step === 2 && !isBooked && (
                         <motion.div key='step2' initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className='bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/60'>
                             <h3 className='text-xl font-bold text-slate-900 mb-6'>Select Date & Time</h3>
+
+                            <div className='mb-6'>
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Preferred Date *</label>
+                                <div className='relative'>
+                                    <Calendar className='absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 pointer-events-none' size={18} />
+                                    <input type='date' name='date' value={formData.date} onChange={handleInputChange} min={getMinDate()}
+                                        className='w-full pl-11 pr-4 py-3.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-600 bg-slate-50 text-sm font-medium text-slate-800 transition-all hover:border-purple-300 cursor-pointer' />
+                                </div>
+                                {formData.date && (
+                                    <p className='text-xs font-medium text-purple-600 mt-2 pl-1'>
+                                        {formatDate(formData.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className='mb-8'>
+                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3'>
+                                    Available Time Slots * {slotsLoading && <Loader2 className='inline animate-spin ml-2 text-purple-600' size={14} />}
+                                </label>
+                                <div className='grid grid-cols-3 md:grid-cols-4 gap-3'>
+                                    {ALL_SLOTS.map(time => {
+                                        const isBookedSlot = bookedSlots.includes(time)
+                                        const isSelected = formData.time === time
+                                        return (
+                                            <button key={time} disabled={isBookedSlot} onClick={() => !isBookedSlot && setFormData(prev => ({ ...prev, time }))}
+                                                className={`py-3 px-2 rounded-xl font-bold transition-all text-sm border-2 focus:outline-none focus:ring-4 focus:ring-purple-200 ${isBookedSlot ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed line-through' : isSelected ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300'}`}>
+                                                {formatTime(time)}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
 
                             {(selectedService || formData.haircutStyle) && (
                                 <div className='bg-slate-50 border border-slate-200 rounded-xl p-5 mb-8'>
@@ -340,33 +372,9 @@ export default function Booking() {
                                 </div>
                             )}
 
-                            <div className='mb-6'>
-                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2'>Preferred Date *</label>
-                                <input type='date' name='date' value={formData.date} onChange={handleInputChange} min={getMinDate()}
-                                    className='w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-slate-50/50 text-sm font-medium' />
-                            </div>
-
-                            <div className='mb-8'>
-                                <label className='block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3'>
-                                    Available Time Slots * {slotsLoading && <Loader2 className='inline animate-spin ml-2 text-purple-600' size={14} />}
-                                </label>
-                                <div className='grid grid-cols-3 md:grid-cols-4 gap-3'>
-                                    {ALL_SLOTS.map(time => {
-                                        const isBookedSlot = bookedSlots.includes(time)
-                                        const isSelected = formData.time === time
-                                        return (
-                                            <button key={time} disabled={isBookedSlot} onClick={() => !isBookedSlot && setFormData(prev => ({ ...prev, time }))}
-                                                className={`py-3 px-2 rounded-xl font-bold transition-all text-sm border-2 ${isBookedSlot ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed line-through' : isSelected ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300'}`}>
-                                                {formatTime(time)}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-
                             <div className='flex gap-3'>
-                                <button onClick={() => setStep(1)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
-                                <button onClick={() => setStep(3)} disabled={!formData.date || !formData.time} className='w-2/3 bg-slate-900 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-slate-800 transition-all'>
+                                <button onClick={() => setStep(1)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all focus:outline-none focus:ring-4 focus:ring-slate-200'>Back</button>
+                                <button onClick={() => setStep(3)} disabled={!formData.date || !formData.time} className='w-2/3 bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:shadow-lg hover:shadow-purple-300 transition-all focus:outline-none focus:ring-4 focus:ring-purple-200'>
                                     Review Booking
                                 </button>
                             </div>
@@ -419,10 +427,10 @@ export default function Booking() {
                             </div>
 
                             <div className='flex gap-3'>
-                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all'>Back</button>
-                                <button onClick={handleSubmitBooking} disabled={isSubmittingBooking || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
-                                    className='w-2/3 bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-purple-700 shadow-md shadow-purple-200 transition-all flex justify-center items-center gap-2'>
-                                    {isSubmittingBooking ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
+                                <button onClick={() => setStep(2)} className='w-1/3 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold hover:bg-slate-200 transition-all focus:outline-none focus:ring-4 focus:ring-slate-200'>Back</button>
+                                <button onClick={handleSubmit} disabled={isSubmitting || !formData.ownerName || !formData.ownerEmail || !formData.ownerPhone}
+                                    className='w-2/3 bg-purple-600 text-white py-3.5 rounded-xl font-bold disabled:opacity-40 hover:bg-purple-700 shadow-md shadow-purple-200 transition-all flex justify-center items-center gap-2 focus:outline-none focus:ring-4 focus:ring-purple-200'>
+                                    {isSubmitting ? <><Loader2 className='animate-spin' size={18} /> Confirming...</> : 'Confirm Appointment'}
                                 </button>
                             </div>
                         </motion.div>

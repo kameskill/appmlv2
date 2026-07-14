@@ -23,7 +23,7 @@ export default function CTA() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => navigate('/booking')}
-          className='bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all'
+          className='bg-white text-purple-600 px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-white/50'
         >
           Book Appointment Now
         </motion.button>

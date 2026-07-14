@@ -50,11 +50,11 @@ export default function Features() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          viewport={{ once: false }}
+          viewport={{ once: true }}
           className="text-center mb-16"
         >
           <h2 className="text-5xl font-bold text-gray-900">
-            Why Choose Timmy Talks?
+            Why Choose Timmy Tails?
           </h2>
         </motion.div>
 
@@ -62,7 +62,7 @@ export default function Features() {
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: false, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.2 }}
           className="grid md:grid-cols-3 gap-8"
         >
           {features.map((feature, index) => {
