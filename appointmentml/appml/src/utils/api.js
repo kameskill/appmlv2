@@ -46,6 +46,9 @@ export const adminApi = {
     deleteAppointment: (id) => api.delete(`/admin/appointments/${id}`),
     getAnalytics: () => api.get('/admin/analytics'),
     getContacts: () => api.get('/admin/contacts'),
+    getContacts: () => api.get('/admin/contacts'),
+    markContactRead: (id) => api.patch(`/admin/contacts/${id}/read`),
+    deleteContact: (id) => api.delete(`/admin/contacts/${id}`),
 
     // Added for the specific-user notification dropdown
     getUsers: () => api.get('/admin/users'),
